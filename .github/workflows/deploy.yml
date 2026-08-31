@@ -1,0 +1,189 @@
+name: Deploy Vestaland production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vestaland-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate app files
+        run: |
+          test -s index.html
+          test -s styles.css
+          test -s app.js
+          grep -q "وستالند" index.html
+
+      - name: Prepare package
+        run: tar -czf /tmp/vestaland-site.tgz index.html styles.css app.js manifest.webmanifest sw.js icon.svg
+
+      - name: Install SSH helper
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Upload and publish
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+        run: |
+          set -euo pipefail
+          test -n "${HOST:-}" && test -n "${PASS:-}"
+          REMOTE="$HOST"
+          if [[ "$REMOTE" != *"@"* ]]; then REMOTE="root@$REMOTE"; fi
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+
+          sshpass -p "$PASS" scp $SSH_OPTS /tmp/vestaland-site.tgz "$REMOTE:/tmp/vestaland-site.tgz"
+
+          sshpass -p "$PASS" ssh $SSH_OPTS "$REMOTE" 'bash -s' <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          DOMAIN="vestaland.smarbiz.sbs"
+          ROOT="/var/www/$DOMAIN"
+
+          if ! command -v nginx >/dev/null 2>&1; then
+            apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx certbot openssl
+            systemctl enable nginx >/dev/null 2>&1 || true
+            systemctl start nginx
+          fi
+
+          DETECTED="$(nginx -T 2>/dev/null | awk -v d="$DOMAIN" '$0 ~ "server_name[[:space:]].*" d {hit=1} hit && $1=="root" {gsub(";","",$2); print $2; exit}' || true)"
+          [ -n "$DETECTED" ] && ROOT="$DETECTED"
+
+          mkdir -p "$ROOT"
+          tar -xzf /tmp/vestaland-site.tgz -C "$ROOT"
+          rm -f /tmp/vestaland-site.tgz
+          chown -R www-data:www-data "$ROOT" 2>/dev/null || true
+          find "$ROOT" -type d -exec chmod 755 {} \;
+          find "$ROOT" -type f -exec chmod 644 {} \;
+
+          CONF="/etc/nginx/sites-available/$DOMAIN"
+          mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+          cat > "$CONF" <<NGINX
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name $DOMAIN;
+              root $ROOT;
+              index index.html;
+
+              location /.well-known/acme-challenge/ {
+                  root $ROOT;
+                  try_files \$uri =404;
+              }
+
+              location = /sw.js {
+                  add_header Cache-Control "no-cache";
+                  try_files \$uri =404;
+              }
+
+              location = /index.html {
+                  add_header Cache-Control "no-cache";
+                  try_files \$uri =404;
+              }
+
+              location / {
+                  try_files \$uri \$uri/ /index.html;
+              }
+
+              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
+                  expires 1h;
+                  add_header Cache-Control "public, max-age=3600";
+                  try_files \$uri =404;
+              }
+          }
+          NGINX
+          ln -sfn "$CONF" "/etc/nginx/sites-enabled/$DOMAIN"
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t
+          systemctl reload nginx
+
+          CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
+          CERT_OK=0
+          if [ -s "$CERT_DIR/fullchain.pem" ] && [ -s "$CERT_DIR/privkey.pem" ]; then
+            CERT_OK=1
+          else
+            if certbot certonly --webroot -w "$ROOT" -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email; then
+              CERT_OK=1
+            fi
+          fi
+
+          if [ "$CERT_OK" -eq 1 ]; then
+            CERT="$CERT_DIR/fullchain.pem"
+            KEY="$CERT_DIR/privkey.pem"
+          else
+            CERT="/etc/ssl/certs/$DOMAIN.crt"
+            KEY="/etc/ssl/private/$DOMAIN.key"
+            if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then
+              openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout "$KEY" -out "$CERT" -subj "/CN=$DOMAIN" >/dev/null 2>&1
+            fi
+          fi
+
+          cat > "$CONF" <<NGINX
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name $DOMAIN;
+              root $ROOT;
+              index index.html;
+
+              location /.well-known/acme-challenge/ { root $ROOT; try_files \$uri =404; }
+              location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
+              location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
+              location / { try_files \$uri \$uri/ /index.html; }
+              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
+                  expires 1h;
+                  add_header Cache-Control "public, max-age=3600";
+                  try_files \$uri =404;
+              }
+          }
+
+          server {
+              listen 443 ssl;
+              listen [::]:443 ssl;
+              server_name $DOMAIN;
+              root $ROOT;
+              index index.html;
+              ssl_certificate $CERT;
+              ssl_certificate_key $KEY;
+              ssl_protocols TLSv1.2 TLSv1.3;
+              ssl_session_cache shared:SSL:10m;
+
+              location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
+              location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
+              location / { try_files \$uri \$uri/ /index.html; }
+              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
+                  expires 1h;
+                  add_header Cache-Control "public, max-age=3600";
+                  try_files \$uri =404;
+              }
+          }
+          NGINX
+
+          nginx -t
+          systemctl reload nginx
+          echo "Local HTTP: $(curl -sS -o /dev/null -w '%{http_code}' -H "Host: $DOMAIN" http://127.0.0.1/)"
+          echo "Local HTTPS: $(curl -ksS -o /dev/null -w '%{http_code}' --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/")"
+          REMOTE_SCRIPT
+
+      - name: Verify production
+        run: |
+          set +e
+          for i in 1 2 3 4 5 6; do
+            CODE=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs")
+            echo "Attempt $i: https=$CODE"
+            if [ "$CODE" = "200" ] && grep -q "وستالند" /tmp/body 2>/dev/null; then
+              echo "Vestaland is live over HTTPS."
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
