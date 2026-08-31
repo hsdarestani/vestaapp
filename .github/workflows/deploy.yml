@@ -23,9 +23,11 @@ jobs:
           test -s styles.css
           test -s app.js
           test -s backend/server.py
+          test -s backend/smoke_test.py
           grep -q "وستالند" index.html
           node --check app.js
-          python3 -m py_compile backend/server.py
+          python3 -m py_compile backend/server.py backend/smoke_test.py
+          python3 backend/smoke_test.py
 
       - name: Prepare package
         run: tar -czf /tmp/vestaland-site.tgz index.html styles.css app.js manifest.webmanifest sw.js icon.svg backend
