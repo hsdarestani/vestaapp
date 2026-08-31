@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="description" content="وستالند؛ دورهمی دخترونه برای حرف زدن، مشورت، حال خوب و خرید." />
+  <title>وستالند</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <section id="onboarding" class="screen onboarding-screen" aria-live="polite">
+      <header class="simple-header">
+        <div class="brand-mark">V</div>
+        <span class="eyebrow">VESTALAND</span>
+      </header>
+
+      <div id="quizIntro" class="onboarding-card intro-card">
+        <div class="intro-visual" aria-hidden="true">
+          <span>؟</span>
+        </div>
+        <p class="eyebrow accent">ورودی دورهمی</p>
+        <h1>اول یه تست دخترونه 😌</h1>
+        <p class="lead">۴ تا سؤال کاملاً علمی و صددرصد قابل اعتماد :)) فقط برای فان و اینکه با حال‌وهوای دورهمی آشنا شی.</p>
+        <button class="primary-btn" data-action="start-quiz">بزن بریم</button>
+        <p class="microcopy">این تست احراز هویت یا تعیین جنسیت واقعی نیست؛ یه بخش سرگرمیه.</p>
+      </div>
+
+      <div id="quizCard" class="onboarding-card quiz-card hidden">
+        <div class="quiz-topline">
+          <span id="quizCounter">سؤال ۱ از ۴</span>
+          <div class="progress"><span id="quizProgress"></span></div>
+        </div>
+        <div class="question-visual" id="questionVisual">☕</div>
+        <p class="eyebrow accent">اعتبارسنجی دخترونه</p>
+        <h2 id="quizQuestion"></h2>
+        <div id="quizOptions" class="option-list"></div>
+      </div>
+
+      <div id="quizResult" class="onboarding-card result-card hidden">
+        <div class="result-seal">✓</div>
+        <p class="eyebrow accent">نتیجه اومد</p>
+        <h2>اوکی، راهت می‌دیم تو 😌</h2>
+        <p id="resultCopy" class="lead"></p>
+        <div class="rules-mini">
+          <span>درددل = بدون قضاوت</span>
+          <span>غیبت = بحث آزاده</span>
+          <span>پز = فقط حمایت</span>
+        </div>
+        <button class="primary-btn" data-action="show-plans">انتخاب اشتراک</button>
+      </div>
+
+      <div id="planCard" class="onboarding-card plans-card hidden">
+        <p class="eyebrow accent">عضویت</p>
+        <h2>۷ روز مهمون مایی</h2>
+        <p class="lead">بعدش هر پلنی که دوست داشتی ادامه بده. قبل از پایان دوره آزمایشی هم می‌تونی لغو کنی.</p>
+        <div class="plan-list">
+          <label class="plan-row selected">
+            <input type="radio" name="plan" value="trial" checked />
+            <span><b>۷ روز آزمایشی رایگان</b><small>بدون پرداخت امروز</small></span>
+            <strong>رایگان</strong>
+          </label>
+          <label class="plan-row">
+            <input type="radio" name="plan" value="1m" />
+            <span><b>۱ ماهه</b><small>پرداخت ماهانه</small></span>
+            <strong>۳۴۹٬۰۰۰ تومان</strong>
+          </label>
+          <label class="plan-row">
+            <input type="radio" name="plan" value="3m" />
+            <span><b>۳ ماهه</b><small>به‌صرفه‌تر برای ادامه</small></span>
+            <strong>۸۹۹٬۰۰۰ تومان</strong>
+          </label>
+          <label class="plan-row">
+            <input type="radio" name="plan" value="6m" />
+            <span><b>۶ ماهه</b><small>بهترین قیمت</small></span>
+            <strong>۱٬۵۹۰٬۰۰۰ تومان</strong>
+          </label>
+        </div>
+        <button class="primary-btn" data-action="enter-app">شروع ۷ روز رایگان</button>
+        <button class="text-btn" data-action="enter-app">فعلاً بعداً انتخاب می‌کنم</button>
+      </div>
+    </section>
+
+    <main id="mainApp" class="main-app hidden">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">وستالند</p>
+          <h1 id="sectionTitle">سلام دختر</h1>
+          <p id="sectionSubtitle" class="muted">خوش اومدی به دنیای خودمون</p>
+        </div>
+        <button class="avatar-btn" data-action="open-profile" aria-label="پروفایل"><span>و</span></button>
+      </header>
+
+      <section id="hangoutView" class="view active-view">
+        <nav class="segment-tabs" aria-label="بخش‌های دورهمی">
+          <button class="segment active" data-feed="vent">درددل</button>
+          <button class="segment" data-feed="gossip">غیبت</button>
+          <button class="segment" data-feed="advice">مشورت</button>
+          <button class="segment" data-feed="challenge">چالش روزانه</button>
+          <button class="segment" data-feed="flex">پز</button>
+        </nav>
+
+        <article id="dailyChallenge" class="challenge-card hidden">
+          <div>
+            <p class="eyebrow accent">چالش امروز</p>
+            <h2>اگه می‌تونستی یه پیام به خودت در ۱۸ سالگی بدی، چی می‌گفتی؟</h2>
+            <p class="muted"><span id="challengeCount">۲۶۷</span> جواب</p>
+          </div>
+          <button class="primary-btn compact" data-action="answer-challenge">جوابمو می‌نویسم</button>
+        </article>
+
+        <article class="composer-card">
+          <div class="composer-copy">
+            <p id="composerLabel" class="eyebrow accent">درددل</p>
+            <h2 id="composerTitle">هرچی تو دلت هست بنویس…</h2>
+          </div>
+          <textarea id="postText" rows="3" placeholder="اینجا بنویس…"></textarea>
+          <div class="composer-actions">
+            <label id="anonymousWrap" class="switch-row"><input id="anonymousToggle" type="checkbox" /><span class="switch"></span><span>ناشناس باشه</span></label>
+            <div class="composer-buttons">
+              <button class="ghost-btn" id="photoButton" type="button">+ عکس</button>
+              <button class="primary-btn compact" data-action="publish-post">ارسال</button>
+            </div>
+          </div>
+        </article>
+
+        <div id="feed" class="feed"></div>
+      </section>
+
+      <section id="selfView" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow accent">خودم</p><h2>حال من</h2></div>
+          <span class="outline-icon">♡</span>
+        </div>
+
+        <article class="mood-card">
+          <div class="plant-wrap"><div id="plant" class="plant mood-3"><span class="leaf l1"></span><span class="leaf l2"></span><span class="leaf l3"></span><span class="leaf l4"></span><span class="stem"></span><span class="pot"></span></div></div>
+          <div class="mood-content">
+            <h3>امروز حالت چطوره؟</h3>
+            <p class="muted">یه گزینه بزن؛ فقط برای خودته.</p>
+            <div class="mood-options" id="moodOptions">
+              <button data-mood="1">🥲<span>داغونم</span></button>
+              <button data-mood="2">😕<span>یکم خرابم</span></button>
+              <button data-mood="3" class="selected">😐<span>معمولی</span></button>
+              <button data-mood="4">🙂<span>خوبم</span></button>
+              <button data-mood="5">😍<span>عالی‌ام</span></button>
+            </div>
+            <p id="moodTip" class="soft-note">امروز لازم نیست فوق‌العاده باشی؛ یه کار کوچیک برای خودت کافیه.</p>
+          </div>
+        </article>
+
+        <article class="period-card">
+          <div class="section-heading compact-heading"><div><p class="eyebrow accent">چرخه پریودی</p><h2>تقویم من</h2></div><button class="ghost-btn" data-action="edit-cycle">تنظیم چرخه</button></div>
+          <div class="period-summary">
+            <div><small>پریود بعدی</small><strong id="nextPeriod">۵ روز دیگه</strong></div>
+            <div><small>طول چرخه</small><strong id="cycleLength">۲۸ روز</strong></div>
+            <div><small>حال امروز</small><strong id="savedMood">معمولی</strong></div>
+          </div>
+          <div id="calendar" class="calendar"></div>
+          <div class="legend"><span><i class="dot period"></i>پریود</span><span><i class="dot fertile"></i>بازه باروری</span><span><i class="dot today"></i>امروز</span></div>
+        </article>
+      </section>
+
+      <section id="marketView" class="view">
+        <div class="section-heading"><div><p class="eyebrow accent">بازار</p><h2>چی لازم داری؟</h2></div><span class="outline-icon">⌕</span></div>
+        <div class="search-box"><input id="marketSearch" type="search" placeholder="جستجو بین محصولات…" /><span>⌕</span></div>
+        <div id="marketCategories" class="market-categories">
+          <button class="category active" data-category="all">همه</button>
+          <button class="category" data-category="skin">مراقبت پوست</button>
+          <button class="category" data-category="makeup">آرایش</button>
+          <button class="category" data-category="hair">مو</button>
+          <button class="category" data-category="body">بدن</button>
+          <button class="category" data-category="nail">ناخن</button>
+          <button class="category" data-category="accessory">اکسسوری</button>
+        </div>
+        <div class="store-switch"><button class="active" data-store="all">همه</button><button data-store="cutella">کیوتلا</button><button data-store="vesta">وستا</button></div>
+        <div id="productGrid" class="product-grid"></div>
+      </section>
+
+      <section id="profileView" class="view">
+        <div class="profile-card">
+          <div class="profile-avatar">و</div>
+          <div><p class="eyebrow accent">پروفایل من</p><h2>دختر وستالند</h2><p class="muted">عضو جدید دورهمی</p></div>
+        </div>
+        <div class="profile-menu">
+          <button data-action="show-subscription"><span>اشتراک و VIP</span><b id="subscriptionStatus">۷ روز آزمایشی</b></button>
+          <button><span>پست‌های من</span><b id="myPostCount">۰</b></button>
+          <button><span>ذخیره‌شده‌ها</span><b>۰</b></button>
+          <button><span>حریم خصوصی و امنیت</span><b>›</b></button>
+          <button><span>قوانین دورهمی</span><b>›</b></button>
+        </div>
+        <button class="danger-link" data-action="reset-demo">شروع دوباره دمو</button>
+      </section>
+
+      <nav class="bottom-nav" aria-label="ناوبری اصلی">
+        <button class="active" data-view="hangout"><span>⌂</span><b>دورهمی</b></button>
+        <button data-view="self"><span>✦</span><b>خودم</b></button>
+        <button data-view="market"><span>▢</span><b>بازار</b></button>
+        <button data-view="profile"><span>○</span><b>پروفایل</b></button>
+      </nav>
+    </main>
+
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <button class="modal-close" data-action="close-modal">×</button>
+        <div id="modalContent"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
