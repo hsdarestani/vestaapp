@@ -6,6 +6,7 @@ on:
       - '.github/workflows/verify-live-assets.yml'
   workflow_dispatch:
 
+# post-deploy cache probe: 20260901-1958
 jobs:
   verify:
     runs-on: ubuntu-latest
