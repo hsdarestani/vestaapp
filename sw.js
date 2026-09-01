@@ -1,5 +1,5 @@
-const CACHE='vestaland-v5';
-const CORE=['/','/index.html','/styles.css','/desktop-enhancements.css','/assets/redesign-v3.css','/app.js','/assets/native.js','/manifest.webmanifest','/icon.svg'];
+const CACHE='vestaland-v6';
+const CORE=['/','/index.html','/styles.css','/desktop-enhancements.css','/assets/redesign-v3.css?v=20260901-1805','/app.js','/assets/native.js','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{
