@@ -36,7 +36,7 @@
     const cart=readCart(),rows=cart[store]||[];
     if(!rows.length){window.toast?.('سبد خرید خالیه.');return;}
     openModal(`<p class="kicker">پرداخت ${storeName(store)}</p><h2>آدرس تحویل</h2>
-      <p class="muted">قیمت‌ها دوباره از خود ${storeName(store)} بررسی می‌شن. پرداخت با زیبال از دامنه امن هامون‌کلود انجام می‌شه و بعد سفارش مستقیم داخل ${storeName(store)} ثبت می‌شه.</p>
+      <p class="muted">قیمت‌ها دوباره از خود ${storeName(store)} بررسی می‌شن. پرداخت امن با زیبال انجام می‌شه و بعد سفارش مستقیم داخل ${storeName(store)} ثبت می‌شه.</p>
       <form id="mHamoonCheckout" class="market-checkout-form" data-store="${esc(store)}">
         <div class="market-form-grid"><label>نام<input name="first_name" required autocomplete="given-name"></label><label>نام خانوادگی<input name="last_name" required autocomplete="family-name"></label></div>
         <div class="market-form-grid"><label>موبایل<input name="phone" required inputmode="tel" autocomplete="tel"></label><label>ایمیل<input name="email" type="email" placeholder="اختیاری" autocomplete="email"></label></div>
@@ -52,7 +52,7 @@
     const store=form.dataset.store,cart=readCart(),rows=cart[store]||[];
     if(!rows.length) throw new Error('سبد خرید خالیه.');
     const button=form.querySelector('button[type=submit]'),err=$('#mHamoonErr');
-    err?.classList.add('hidden');button.disabled=true;button.textContent='در حال اتصال به هامون‌کلود…';
+    err?.classList.add('hidden');button.disabled=true;button.textContent='در حال اتصال به درگاه…';
     const fd=new FormData(form),address={country:'IR'};for(const[k,v]of fd.entries())address[k]=String(v).trim();
     try{
       const r=await fetch('/api/market-payment/start',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({store,items:rows.map(x=>({id:Number(x.id),parent_id:x.parent_id?Number(x.parent_id):null,quantity:Number(x.quantity||1)})),billing_address:address,shipping_address:address})});
@@ -86,7 +86,6 @@
       cleanPaymentQuery();setTimeout(()=>window.toast?.('پرداخت انجام نشد؛ سبد خریدت دست‌نخورده موند.'),300);return;
     }
     if(!receipt||!intent){cleanPaymentQuery();return;}
-    // Save proof before any network request so a reload cannot lose a paid order.
     savePending({receipt,intent,store:sessionStorage.getItem('vestaland:market-payment-store')||'',updated_at:Date.now()});
     cleanPaymentQuery();
     try{
@@ -100,7 +99,6 @@
   async function retryPendingSync(){
     const pending=readPending();
     if(!pending?.receipt||!pending?.intent)return;
-    // Avoid hammering on repeated DOM/load events.
     if(pending.updated_at&&Date.now()-Number(pending.updated_at)<5000)return;
     pending.updated_at=Date.now();savePending(pending);
     try{
