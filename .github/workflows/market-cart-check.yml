@@ -1,0 +1,36 @@
+name: Live market cart compatibility
+
+on:
+  push:
+    paths:
+      - .github/workflows/market-cart-check.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Vesta and Cutella Store API carts
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://vestaland.smarbiz.sbs/api/market'
+          sleep 5
+          for STORE in vesta cutella; do
+            echo "Finding a simple purchasable product in $STORE..."
+            PRODUCTS="$(curl -fsS --max-time 35 "$BASE/products?store=$STORE&per_page=30")"
+            ID="$(JSON="$PRODUCTS" python3 - <<'PY'
+          import json, os
+          d=json.loads(os.environ['JSON'])
+          for p in d.get('items',[]):
+              if p.get('is_in_stock') and p.get('is_purchasable') and not p.get('has_options'):
+                  print(p['id']); break
+          PY
+            )"
+            test -n "$ID"
+            echo "Using product $ID"
+            QUOTE="$(curl -fsS --max-time 35 -H 'Content-Type: application/json' -d "{\"store\":\"$STORE\",\"items\":[{\"id\":$ID,\"quantity\":1}]}" "$BASE/quote")"
+            echo "$QUOTE"
+            echo "$QUOTE" | grep -q '"ok":true'
+            echo "$QUOTE" | grep -q '"items_count":1'
+          done
+          echo 'Both WooCommerce carts accept Vestaland Cart-Token flow.'
