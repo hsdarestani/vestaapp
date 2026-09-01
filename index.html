@@ -9,8 +9,21 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/styles.css?v=20260901-1818" />
-  <link rel="stylesheet" href="/desktop-enhancements.css?v=20260901-1818" />
+  <link rel="stylesheet" href="/styles.css?v=20260901-1958" />
+  <link rel="stylesheet" href="/desktop-enhancements.css?v=20260901-1958" />
+  <link rel="stylesheet" href="/assets/market-live.css?v=20260901-1958" data-vestaland-market="1" />
+  <script>
+    (()=>{
+      const build='20260901-1958';
+      try{
+        if(localStorage.getItem('vestaland:build')!==build){
+          localStorage.setItem('vestaland:build',build);
+          if('caches' in window)caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('vestaland-')).map(k=>caches.delete(k)))).catch(()=>{});
+          if('serviceWorker' in navigator)navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{});
+        }
+      }catch(_){}
+    })();
+  </script>
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -152,7 +165,9 @@
     <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-backdrop" data-action="close-modal"></div><div class="modal-sheet"><div class="modal-handle"></div><button class="modal-close" data-action="close-modal" aria-label="بستن">×</button><div id="modalContent"></div></div></div>
     <div id="toast" class="toast hidden"></div>
   </div>
-  <script src="/app.js?v=20260901-1818" defer></script>
-  <script src="/assets/native.js?v=20260901-1818" defer></script>
+  <script src="/app.js?v=20260901-1958" defer></script>
+  <script src="/assets/native.js?v=20260901-1958" defer></script>
+  <script src="/assets/market-live-v2.js?v=20260901-1958" data-vestaland-market-main="1" defer></script>
+  <script src="/assets/market-native-checkout.js?v=20260901-1958" data-vestaland-market-native="1" defer></script>
 </body>
 </html>
