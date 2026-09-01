@@ -1,0 +1,30 @@
+name: Verify live market assets
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-live-assets.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect production HTML and assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://vestaland.smarbiz.sbs'
+          echo '=== INDEX SCRIPT REFS ==='
+          curl -fsS --max-time 20 "$BASE/?cache_probe=$(date +%s)" | grep -E 'app\.js|native\.js|market-live' || true
+          echo '=== NATIVE MARKERS ==='
+          curl -fsS --max-time 20 "$BASE/assets/native.js?probe=$(date +%s)" | grep -oE 'market-live-v2\.js\?v=[^\x27\x22]+' | head -n 3 || true
+          echo '=== LIVE V2 BOOT MARKER ==='
+          curl -fsS --max-time 20 "$BASE/assets/market-live-v2.js?probe=$(date +%s)" | grep -o "document.readyState==='loading'" | head -n 1
+          echo '=== HEADERS INDEX ==='
+          curl -sSI --max-time 20 "$BASE/?cache_probe=$(date +%s)" | grep -Ei 'HTTP/|cache-control|expires|etag|age|cf-cache-status' || true
+          echo '=== HEADERS NATIVE ==='
+          curl -sSI --max-time 20 "$BASE/assets/native.js?probe=$(date +%s)" | grep -Ei 'HTTP/|cache-control|expires|etag|age|cf-cache-status' || true
+          echo '=== MARKET API ==='
+          curl -fsS --max-time 25 "$BASE/api/market/products?store=all&per_page=2" | head -c 1500
+          echo
