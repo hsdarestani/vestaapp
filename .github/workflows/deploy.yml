@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate app files
+        shell: bash
         run: |
           set -euo pipefail
           test -s index.html
@@ -33,6 +34,7 @@ jobs:
           test -s backend/market_server.py
           test -s backend/market_payment_server.py
           test -s backend/smoke_test.py
+          test -s scripts/deploy-production.sh
           grep -q "وستالند" index.html
           node --check app.js
           node --check assets/native.js
@@ -40,231 +42,36 @@ jobs:
           node --check assets/market-native-checkout.js
           node --check assets/market-payment-hamoon.js
           python3 -m py_compile backend/server.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py
+          bash -n scripts/deploy-production.sh
           python3 backend/smoke_test.py
 
       - name: Prepare package
-        run: tar -czf /tmp/vestaland-site.tgz index.html styles.css desktop-enhancements.css app.js manifest.webmanifest sw.js icon.svg assets backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/vestaland-site.tgz index.html styles.css desktop-enhancements.css app.js manifest.webmanifest sw.js icon.svg assets backend
 
       - name: Install SSH helper
+        shell: bash
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
       - name: Upload and publish
+        shell: bash
         env:
           HOST: ${{ secrets.HOST }}
           PASS: ${{ secrets.PASS }}
         run: |
           set -euo pipefail
-          test -n "${HOST:-}" && test -n "${PASS:-}"
+          test -n "${HOST:-}"
+          test -n "${PASS:-}"
           REMOTE="$HOST"
           if [[ "$REMOTE" != *"@"* ]]; then REMOTE="root@$REMOTE"; fi
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
           sshpass -p "$PASS" scp $SSH_OPTS /tmp/vestaland-site.tgz "$REMOTE:/tmp/vestaland-site.tgz"
-
-          sshpass -p "$PASS" ssh $SSH_OPTS "$REMOTE" 'bash -s' <<'REMOTE_SCRIPT'
-          set -euo pipefail
-          DOMAIN="vestaland.smarbiz.sbs"
-          ROOT="/var/www/$DOMAIN"
-          API_PORT="8765"
-          MARKET_PORT="8766"
-          PAYMENT_PORT="8767"
-
-          if ! command -v nginx >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
-            apt-get update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx certbot openssl python3
-            systemctl enable nginx >/dev/null 2>&1 || true
-            systemctl start nginx
-          fi
-
-          DETECTED="$(nginx -T 2>/dev/null | awk -v d="$DOMAIN" '$0 ~ "server_name[[:space:]].*" d {hit=1} hit && $1=="root" {gsub(";","",$2); print $2; exit}' || true)"
-          [ -n "$DETECTED" ] && ROOT="$DETECTED"
-
-          mkdir -p "$ROOT" /var/lib/vestaland
-          tar -xzf /tmp/vestaland-site.tgz -C "$ROOT"
-          rm -f /tmp/vestaland-site.tgz
-          chown -R www-data:www-data "$ROOT" /var/lib/vestaland 2>/dev/null || true
-          find "$ROOT" -type d -exec chmod 755 {} \;
-          find "$ROOT" -type f -exec chmod 644 {} \;
-
-          cat > /etc/systemd/system/vestaland-api.service <<SERVICE
-          [Unit]
-          Description=Vestaland Community API
-          After=network.target
-          [Service]
-          Type=simple
-          User=www-data
-          Group=www-data
-          WorkingDirectory=$ROOT
-          ExecStart=/usr/bin/python3 $ROOT/backend/server.py --host 127.0.0.1 --port $API_PORT --db /var/lib/vestaland/vestaland.db
-          Restart=always
-          RestartSec=2
-          NoNewPrivileges=true
-          PrivateTmp=true
-          [Install]
-          WantedBy=multi-user.target
-          SERVICE
-
-          cat > /etc/systemd/system/vestaland-market.service <<SERVICE
-          [Unit]
-          Description=Vestaland Live WooCommerce Market API
-          After=network-online.target
-          Wants=network-online.target
-          [Service]
-          Type=simple
-          User=www-data
-          Group=www-data
-          WorkingDirectory=$ROOT
-          ExecStart=/usr/bin/python3 $ROOT/backend/market_server.py --host 127.0.0.1 --port $MARKET_PORT
-          Restart=always
-          RestartSec=2
-          NoNewPrivileges=true
-          PrivateTmp=true
-          [Install]
-          WantedBy=multi-user.target
-          SERVICE
-
-          cat > /etc/systemd/system/vestaland-market-payment.service <<SERVICE
-          [Unit]
-          Description=Vestaland Hamoon Marketplace Payment API
-          After=network-online.target
-          Wants=network-online.target
-          [Service]
-          Type=simple
-          User=www-data
-          Group=www-data
-          WorkingDirectory=$ROOT
-          ExecStart=/usr/bin/python3 $ROOT/backend/market_payment_server.py --host 127.0.0.1 --port $PAYMENT_PORT --db /var/lib/vestaland/market-payments.db
-          Restart=always
-          RestartSec=2
-          NoNewPrivileges=true
-          PrivateTmp=true
-          [Install]
-          WantedBy=multi-user.target
-          SERVICE
-
-          systemctl daemon-reload
-          systemctl enable vestaland-api.service vestaland-market.service vestaland-market-payment.service >/dev/null 2>&1 || true
-          systemctl restart vestaland-api.service
-          systemctl restart vestaland-market.service
-          systemctl restart vestaland-market-payment.service
-
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            API_OK=0; MARKET_OK=0; PAYMENT_OK=0
-            curl -fsS --max-time 2 "http://127.0.0.1:$API_PORT/api/health" | grep -q '"ok":true' && API_OK=1 || true
-            curl -fsS --max-time 2 "http://127.0.0.1:$MARKET_PORT/api/market/health" | grep -q '"ok":true' && MARKET_OK=1 || true
-            curl -fsS --max-time 2 "http://127.0.0.1:$PAYMENT_PORT/api/market-payment/health" | grep -q '"ok":true' && PAYMENT_OK=1 || true
-            if [ "$API_OK" = 1 ] && [ "$MARKET_OK" = 1 ] && [ "$PAYMENT_OK" = 1 ]; then
-              echo "Vestaland APIs are healthy."
-              break
-            fi
-            if [ "$i" = "10" ]; then
-              systemctl status vestaland-api.service vestaland-market.service vestaland-market-payment.service --no-pager || true
-              journalctl -u vestaland-market-payment.service -n 80 --no-pager || true
-              exit 1
-            fi
-            sleep 1
-          done
-
-          CONF="/etc/nginx/sites-available/$DOMAIN"
-          mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
-
-          write_locations() {
-            cat <<NGINX
-              location /api/market-payment/ {
-                  proxy_pass http://127.0.0.1:$PAYMENT_PORT;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_read_timeout 45s;
-                  add_header Cache-Control "no-store" always;
-              }
-              location /api/market/ {
-                  proxy_pass http://127.0.0.1:$MARKET_PORT;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_read_timeout 45s;
-                  add_header Cache-Control "no-store" always;
-              }
-              location /api/ {
-                  proxy_pass http://127.0.0.1:$API_PORT;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_read_timeout 30s;
-                  add_header Cache-Control "no-store" always;
-              }
-NGINX
-          }
-
-          cat > "$CONF" <<NGINX
-          server {
-              listen 80;
-              listen [::]:80;
-              server_name $DOMAIN;
-              root $ROOT;
-              index index.html;
-              location /.well-known/acme-challenge/ { root $ROOT; try_files \$uri =404; }
-              location /api/market-payment/ { proxy_pass http://127.0.0.1:$PAYMENT_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
-              location /api/market/ { proxy_pass http://127.0.0.1:$MARKET_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
-              location /api/ { proxy_pass http://127.0.0.1:$API_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 30s; add_header Cache-Control "no-store" always; }
-              location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
-              location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
-              location / { try_files \$uri \$uri/ /index.html; }
-              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ { expires -1; add_header Cache-Control "no-store, no-cache, must-revalidate" always; try_files \$uri =404; }
-          }
-          NGINX
-          ln -sfn "$CONF" "/etc/nginx/sites-enabled/$DOMAIN"
-          rm -f /etc/nginx/sites-enabled/default
-          nginx -t
-          systemctl reload nginx
-
-          CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
-          CERT_OK=0
-          if [ -s "$CERT_DIR/fullchain.pem" ] && [ -s "$CERT_DIR/privkey.pem" ]; then CERT_OK=1
-          elif certbot certonly --webroot -w "$ROOT" -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email; then CERT_OK=1
-          fi
-          if [ "$CERT_OK" -eq 1 ]; then CERT="$CERT_DIR/fullchain.pem"; KEY="$CERT_DIR/privkey.pem";
-          else
-            CERT="/etc/ssl/certs/$DOMAIN.crt"; KEY="/etc/ssl/private/$DOMAIN.key"
-            if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout "$KEY" -out "$CERT" -subj "/CN=$DOMAIN" >/dev/null 2>&1; fi
-          fi
-
-          cat >> "$CONF" <<NGINX
-
-          server {
-              listen 443 ssl;
-              listen [::]:443 ssl;
-              server_name $DOMAIN;
-              root $ROOT;
-              index index.html;
-              ssl_certificate $CERT;
-              ssl_certificate_key $KEY;
-              ssl_protocols TLSv1.2 TLSv1.3;
-              ssl_session_cache shared:SSL:10m;
-              location /api/market-payment/ { proxy_pass http://127.0.0.1:$PAYMENT_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
-              location /api/market/ { proxy_pass http://127.0.0.1:$MARKET_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
-              location /api/ { proxy_pass http://127.0.0.1:$API_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 30s; add_header Cache-Control "no-store" always; }
-              location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
-              location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
-              location / { try_files \$uri \$uri/ /index.html; }
-              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ { expires -1; add_header Cache-Control "no-store, no-cache, must-revalidate" always; try_files \$uri =404; }
-          }
-          NGINX
-
-          nginx -t
-          systemctl reload nginx
-          echo "API health: $(curl -sS http://127.0.0.1:$API_PORT/api/health)"
-          echo "Market health: $(curl -sS http://127.0.0.1:$MARKET_PORT/api/market/health)"
-          echo "Payment health: $(curl -sS http://127.0.0.1:$PAYMENT_PORT/api/market-payment/health)"
-          REMOTE_SCRIPT
+          sshpass -p "$PASS" ssh $SSH_OPTS "$REMOTE" 'bash -s' < scripts/deploy-production.sh
 
       - name: Verify production
+        shell: bash
         run: |
           set +e
           for i in 1 2 3 4 5 6; do
@@ -275,7 +82,8 @@ NGINX
             VESTA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=vesta&per_page=1")
             CUTELLA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=cutella&per_page=1")
             echo "Attempt $i: https=$CODE api=$API market=$MARKET payment=$PAYMENT"
-            if [ "$CODE" = "200" ] && grep -q "وستالند" /tmp/body 2>/dev/null \
+            if [ "$CODE" = "200" ] \
+              && grep -q "وستالند" /tmp/body 2>/dev/null \
               && echo "$API" | grep -q '"ok":true' \
               && echo "$MARKET" | grep -q '"ok":true' \
               && echo "$PAYMENT" | grep -q '"ok":true' \
