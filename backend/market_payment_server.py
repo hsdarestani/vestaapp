@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import secrets
 import sqlite3
@@ -11,15 +12,27 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STORES = {
-    'vesta': {'name': 'وستا', 'base': 'https://vesta-cosmetics.ir'},
-    'cutella': {'name': 'کیوتلا', 'base': 'https://cutellashop.ir'},
+    'vesta': {
+        'name': 'وستا',
+        'base': 'https://vesta-cosmetics.ir',
+        'sync': 'https://ordersvesta.smarbiz.sbs/vestaland-order-sync',
+    },
+    'cutella': {
+        'name': 'کیوتلا',
+        'base': 'https://cutellashop.ir',
+        'sync': 'https://orderscutella.smarbiz.sbs/vestaland-order-sync',
+    },
 }
 HAMOON_BASE = 'https://pay.hamooncloud.ir/payments/vestaland-market'
-UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Safari/537.36 VestalandMarketPayment/1.0'
+UA = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Safari/537.36 VestalandMarketPayment/1.1'
 SSL = ssl.create_default_context()
 MAX_BODY = 128 * 1024
 INTENT_TTL = 30 * 60
 DB_PATH = '/var/lib/vestaland/market-payments.db'
+ADDRESS_KEYS = (
+    'first_name', 'last_name', 'company', 'phone', 'email', 'city', 'state',
+    'address_1', 'address_2', 'postcode', 'country',
+)
 
 
 def now_ts():
@@ -36,7 +49,7 @@ def request_json(url, method='GET', body=None, timeout=18):
         with urllib.request.urlopen(req, timeout=timeout, context=SSL) as res:
             return json.loads(res.read().decode('utf-8')), res.status
     except urllib.error.HTTPError as exc:
-        text = exc.read().decode('utf-8', errors='replace')[:1000]
+        text = exc.read().decode('utf-8', errors='replace')[:1200]
         try:
             payload = json.loads(text)
             message = payload.get('error') or payload.get('message') or text
@@ -96,13 +109,12 @@ def authoritative_item(store, raw):
 def clean_address(value):
     if not isinstance(value, dict):
         raise ValueError('آدرس تحویل معتبر نیست.')
-    out = {}
     limits = {
-        'first_name': 80, 'last_name': 80, 'phone': 32, 'email': 160,
-        'city': 100, 'state': 100, 'address_1': 300, 'postcode': 32, 'country': 8,
+        'first_name': 80, 'last_name': 80, 'company': 120, 'phone': 32,
+        'email': 160, 'city': 100, 'state': 100, 'address_1': 300,
+        'address_2': 300, 'postcode': 32, 'country': 8,
     }
-    for key, limit in limits.items():
-        out[key] = str(value.get(key) or '').strip()[:limit]
+    out = {key: str(value.get(key) or '').strip()[:limits[key]] for key in ADDRESS_KEYS}
     for key in ('first_name', 'last_name', 'phone', 'city', 'state', 'address_1', 'postcode'):
         if not out[key]:
             raise ValueError('اطلاعات آدرس کامل نیست.')
@@ -110,10 +122,43 @@ def clean_address(value):
     return out
 
 
+def normalized_hash_items(items):
+    result = []
+    for raw in items:
+        result.append({
+            'id': int(raw.get('id') or 0),
+            'parent_id': int(raw.get('parent_id') or 0) or None,
+            'quantity': max(1, min(20, int(raw.get('quantity') or 1))),
+            'price_toman': int(raw.get('price_toman') or 0),
+            'line_total_toman': int(raw.get('line_total_toman') or 0),
+        })
+    return result
+
+
+def payload_hash(store, amount_toman, items, address):
+    canonical = {
+        'store': str(store),
+        'amount_toman': int(amount_toman),
+        'items': normalized_hash_items(items),
+        'address': {key: str((address or {}).get(key) or '').strip() for key in ADDRESS_KEYS},
+    }
+    canonical['address']['country'] = 'IR'
+    raw = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return hashlib.sha256(raw).hexdigest()
+
+
 def db():
     conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def add_column(conn, table, definition):
+    try:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {definition}')
+    except sqlite3.OperationalError as exc:
+        if 'duplicate column name' not in str(exc).lower():
+            raise
 
 
 def init_db(path):
@@ -128,6 +173,7 @@ def init_db(path):
       amount_toman INTEGER NOT NULL,
       items_json TEXT NOT NULL,
       address_json TEXT NOT NULL,
+      payload_hash TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       receipt TEXT,
       created_at INTEGER NOT NULL,
@@ -144,10 +190,23 @@ def init_db(path):
       amount_toman INTEGER NOT NULL,
       items_json TEXT NOT NULL,
       address_json TEXT NOT NULL,
+      payload_hash TEXT,
       status TEXT NOT NULL DEFAULT 'paid',
-      created_at INTEGER NOT NULL
+      woo_order_id INTEGER,
+      woo_status TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'pending',
+      sync_error TEXT,
+      created_at INTEGER NOT NULL,
+      synced_at INTEGER
     );
     ''')
+    add_column(conn, 'market_payment_intents', 'payload_hash TEXT')
+    add_column(conn, 'market_orders', 'payload_hash TEXT')
+    add_column(conn, 'market_orders', 'woo_order_id INTEGER')
+    add_column(conn, 'market_orders', 'woo_status TEXT')
+    add_column(conn, 'market_orders', "sync_status TEXT NOT NULL DEFAULT 'pending'")
+    add_column(conn, 'market_orders', 'sync_error TEXT')
+    add_column(conn, 'market_orders', 'synced_at INTEGER')
     conn.commit()
     conn.close()
 
@@ -164,14 +223,15 @@ def create_intent(body):
     amount = sum(int(x['line_total_toman']) for x in items)
     if amount < 1000 or amount > 500_000_000:
         raise ValueError('مبلغ سفارش معتبر نیست.')
+    digest = payload_hash(store, amount, items, address)
     intent = secrets.token_urlsafe(32)
     created = now_ts()
     expires = created + INTENT_TTL
     conn = db()
     conn.execute(
-        'INSERT INTO market_payment_intents(intent,store,amount_toman,items_json,address_json,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)',
+        'INSERT INTO market_payment_intents(intent,store,amount_toman,items_json,address_json,payload_hash,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?)',
         (intent, store, amount, json.dumps(items, ensure_ascii=False, separators=(',', ':')),
-         json.dumps(address, ensure_ascii=False, separators=(',', ':')), 'pending', created, expires)
+         json.dumps(address, ensure_ascii=False, separators=(',', ':')), digest, 'pending', created, expires)
     )
     conn.commit(); conn.close()
     return {
@@ -188,8 +248,20 @@ def create_intent(body):
 def get_intent(intent):
     if len(intent) < 20:
         return None
-    conn = db(); row = conn.execute('SELECT * FROM market_payment_intents WHERE intent=? LIMIT 1', (intent,)).fetchone(); conn.close()
-    return dict(row) if row else None
+    conn = db()
+    row = conn.execute('SELECT * FROM market_payment_intents WHERE intent=? LIMIT 1', (intent,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    result = dict(row)
+    if not result.get('payload_hash'):
+        items = json.loads(result['items_json'])
+        address = json.loads(result['address_json'])
+        result['payload_hash'] = payload_hash(result['store'], result['amount_toman'], items, address)
+        conn = db()
+        conn.execute('UPDATE market_payment_intents SET payload_hash=? WHERE intent=?', (result['payload_hash'], intent))
+        conn.commit(); conn.close()
+    return result
 
 
 def hamoon_status(receipt):
@@ -197,44 +269,124 @@ def hamoon_status(receipt):
     return data
 
 
+def get_market_order(intent):
+    conn = db()
+    row = conn.execute('SELECT * FROM market_orders WHERE intent=? LIMIT 1', (intent,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def sync_paid_order(row, receipt):
+    intent = str(row['intent'])
+    order = get_market_order(intent)
+    if order and order.get('sync_status') == 'synced' and int(order.get('woo_order_id') or 0) > 0:
+        return order
+
+    items = json.loads(row['items_json'])
+    address = json.loads(row['address_json'])
+    digest = row.get('payload_hash') or payload_hash(row['store'], row['amount_toman'], items, address)
+    body = {
+        'store': row['store'],
+        'receipt': receipt,
+        'intent': intent,
+        'amount_toman': int(row['amount_toman']),
+        'payload_hash': digest,
+        'items': normalized_hash_items(items),
+        'address': {key: str(address.get(key) or '').strip() for key in ADDRESS_KEYS},
+    }
+    body['address']['country'] = 'IR'
+
+    try:
+        result, _ = request_json(STORES[row['store']]['sync'], method='POST', body=body, timeout=28)
+        if not result.get('ok') or int(result.get('order_id') or 0) <= 0:
+            raise ValueError(str(result.get('error') or 'فروشگاه شماره سفارش برنگرداند.'))
+        synced = now_ts()
+        conn = db()
+        conn.execute(
+            "UPDATE market_orders SET sync_status='synced',sync_error=NULL,woo_order_id=?,woo_status=?,synced_at=? WHERE intent=?",
+            (int(result['order_id']), str(result.get('status') or ''), synced, intent)
+        )
+        conn.commit(); conn.close()
+        return get_market_order(intent)
+    except Exception as exc:
+        error = str(exc)[:900]
+        conn = db()
+        conn.execute(
+            "UPDATE market_orders SET sync_status='pending',sync_error=? WHERE intent=?",
+            (error, intent)
+        )
+        conn.commit(); conn.close()
+        return get_market_order(intent)
+
+
 def confirm_payment(body):
-    receipt = str(body.get('receipt') or '').strip()
+    receipt = str(body.get('receipt') or '').strip().lower()
     intent = str(body.get('intent') or '').strip()
     if not receipt or not intent:
         raise ValueError('رسید پرداخت ناقص است.')
     row = get_intent(intent)
     if not row:
         raise ValueError('سفارش پرداخت پیدا نشد.')
-    if row['status'] == 'paid' and row.get('receipt') == receipt:
-        return {'ok': True, 'store': row['store'], 'amount_toman': int(row['amount_toman']), 'receipt': receipt, 'intent': intent, 'already_confirmed': True}
+
     status = hamoon_status(receipt)
     if not status.get('ok') or status.get('status') != 'paid':
         raise ValueError('پرداخت هنوز توسط هامون تأیید نشده است.')
     if str(status.get('intent') or '') != intent:
         raise ValueError('رسید با سفارش مطابقت ندارد.')
+    if str(status.get('plan') or '') != row['store']:
+        raise ValueError('فروشگاه رسید با سفارش مطابقت ندارد.')
     if int(status.get('amount_toman') or 0) != int(row['amount_toman']):
         raise ValueError('مبلغ پرداخت با سفارش مطابقت ندارد.')
-    paid = now_ts()
+    digest = row.get('payload_hash') or payload_hash(row['store'], row['amount_toman'], json.loads(row['items_json']), json.loads(row['address_json']))
+    if str(status.get('metadata_hash') or '').lower() != digest.lower():
+        raise ValueError('سبد پرداخت‌شده با سفارش فعلی مطابقت ندارد.')
+
+    paid = int(row.get('paid_at') or 0) or now_ts()
     conn = db()
     try:
         conn.execute('BEGIN IMMEDIATE')
         fresh = conn.execute('SELECT * FROM market_payment_intents WHERE intent=? LIMIT 1', (intent,)).fetchone()
         if not fresh:
             raise ValueError('سفارش پیدا نشد.')
-        if fresh['status'] != 'paid':
-            conn.execute('UPDATE market_payment_intents SET status=?,receipt=?,paid_at=? WHERE intent=?', ('paid', receipt, paid, intent))
+        if fresh['status'] != 'paid' or str(fresh['receipt'] or '') != receipt:
+            if fresh['status'] == 'paid' and fresh['receipt'] and str(fresh['receipt']) != receipt:
+                raise ValueError('این سفارش قبلاً با رسید دیگری تأیید شده است.')
             conn.execute(
-                'INSERT OR IGNORE INTO market_orders(intent,receipt,store,amount_toman,items_json,address_json,status,created_at) VALUES(?,?,?,?,?,?,?,?)',
-                (intent, receipt, fresh['store'], fresh['amount_toman'], fresh['items_json'], fresh['address_json'], 'paid', paid)
+                'UPDATE market_payment_intents SET status=?,receipt=?,paid_at=?,payload_hash=? WHERE intent=?',
+                ('paid', receipt, paid, digest, intent)
             )
+        conn.execute(
+            '''INSERT OR IGNORE INTO market_orders(
+                 intent,receipt,store,amount_toman,items_json,address_json,payload_hash,status,sync_status,created_at
+               ) VALUES(?,?,?,?,?,?,?,?,?,?)''',
+            (intent, receipt, row['store'], row['amount_toman'], row['items_json'], row['address_json'], digest, 'paid', 'pending', paid)
+        )
         conn.commit()
     finally:
         conn.close()
-    return {'ok': True, 'store': row['store'], 'amount_toman': int(row['amount_toman']), 'receipt': receipt, 'intent': intent}
+
+    fresh_row = get_intent(intent)
+    synced = sync_paid_order(fresh_row, receipt)
+    woo_id = int((synced or {}).get('woo_order_id') or 0)
+    sync_status = str((synced or {}).get('sync_status') or 'pending')
+    response = {
+        'ok': True,
+        'store': row['store'],
+        'amount_toman': int(row['amount_toman']),
+        'receipt': receipt,
+        'intent': intent,
+        'payment_confirmed': True,
+        'woo_order_id': woo_id or None,
+        'woo_status': (synced or {}).get('woo_status') or None,
+        'sync_pending': sync_status != 'synced',
+    }
+    if response['sync_pending']:
+        response['sync_error'] = (synced or {}).get('sync_error') or 'STORE_SYNC_PENDING'
+    return response
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'VestalandMarketPayment/1.0'
+    server_version = 'VestalandMarketPayment/1.1'
     def log_message(self, fmt, *args):
         print('%s - %s' % (self.address_string(), fmt % args), flush=True)
     def send_json(self, status, payload):
@@ -258,7 +410,7 @@ class Handler(BaseHTTPRequestHandler):
         qs = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items() if v}
         try:
             if path == '/api/market-payment/health':
-                return self.send_json(200, {'ok': True, 'service': 'vestaland-market-payment', 'version': 1, 'gateway': 'pay.hamooncloud.ir'})
+                return self.send_json(200, {'ok': True, 'service': 'vestaland-market-payment', 'version': 2, 'gateway': 'pay.hamooncloud.ir', 'woo_sync': True})
             if path == '/api/market-payment/intent':
                 row = get_intent(str(qs.get('intent') or ''))
                 if not row: return self.send_json(404, {'ok': False, 'error': 'NOT_FOUND'})
@@ -267,6 +419,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {
                     'ok': True, 'intent': row['intent'], 'store': row['store'],
                     'store_name': STORES[row['store']]['name'], 'amount_toman': int(row['amount_toman']),
+                    'payload_hash': row['payload_hash'],
                     'status': row['status'], 'expires_at': int(row['expires_at']),
                     'label': f"خرید از {STORES[row['store']]['name']} در وستالند"
                 })
