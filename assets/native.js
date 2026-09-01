@@ -31,6 +31,7 @@
     if(!document.querySelector('link[data-vestaland-market]')){const l=document.createElement('link');l.rel='stylesheet';l.href='/assets/market-live.css?v=20260901-4';l.dataset.vestalandMarket='1';document.head.appendChild(l)}
     if(!document.querySelector('script[data-vestaland-market-main]')){const s=document.createElement('script');s.src='/assets/market-live-v2.js?v=20260901-4';s.dataset.vestalandMarketMain='1';document.body.appendChild(s)}
     if(!document.querySelector('script[data-vestaland-market-native]')){const s=document.createElement('script');s.src='/assets/market-native-checkout.js?v=20260901-4';s.dataset.vestalandMarketNative='1';document.body.appendChild(s)}
+    if(!document.querySelector('script[data-vestaland-market-gallery]')){const s=document.createElement('script');s.src='/assets/market-gallery.js?v=20260901-2150';s.dataset.vestalandMarketGallery='1';document.body.appendChild(s)}
   }
   window.state=window.state||{marketStore:'all'};
   document.addEventListener('click',e=>{const b=e.target.closest('.store-switch [data-store]');if(b)window.state.marketStore=b.dataset.store});
