@@ -1,4 +1,4 @@
-const CACHE='vestaland-v10';
+const CACHE='vestaland-v11';
 const CORE=[
   '/',
   '/index.html',
@@ -8,6 +8,7 @@ const CORE=[
   '/assets/native.js?v=20260901-1958',
   '/assets/market-live.css?v=20260901-1958',
   '/assets/market-live-v2.js?v=20260901-1958',
+  '/assets/market-detail.css?v=20260901-2118',
   '/assets/market-native-checkout.js?v=20260901-1958',
   '/manifest.webmanifest',
   '/icon.svg'
