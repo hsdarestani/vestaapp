@@ -1,4 +1,6 @@
-const CACHE='vestaland-v11';
+const CACHE='vestaland-v12';
+const MARKET_CACHE='vestaland-market-data-v2';
+const IMAGE_CACHE='vestaland-market-images-v2';
 const CORE=[
   '/',
   '/index.html',
@@ -8,7 +10,6 @@ const CORE=[
   '/assets/native.js?v=20260901-1958',
   '/assets/market-live.css?v=20260901-1958',
   '/assets/market-live-v2.js?v=20260901-1958',
-  '/assets/market-detail.css?v=20260901-2118',
   '/assets/market-native-checkout.js?v=20260901-1958',
   '/manifest.webmanifest',
   '/icon.svg'
@@ -21,14 +22,55 @@ self.addEventListener('install',event=>{
 self.addEventListener('activate',event=>{
   event.waitUntil(
     caches.keys()
-      .then(keys=>Promise.all(keys.filter(k=>k.startsWith('vestaland-')&&k!==CACHE).map(k=>caches.delete(k))))
+      .then(keys=>Promise.all(keys.filter(k=>k.startsWith('vestaland-')&&!([CACHE,MARKET_CACHE,IMAGE_CACHE].includes(k))).map(k=>caches.delete(k))))
       .then(()=>self.clients.claim())
   );
 });
 
+async function cachedMarket(request){
+  const cache=await caches.open(MARKET_CACHE);
+  const cached=await cache.match(request);
+  const refresh=fetch(request,{cache:'no-store'}).then(async response=>{
+    if(response.ok) await cache.put(request,response.clone());
+    return response;
+  });
+  if(cached){
+    const date=Date.parse(cached.headers.get('date')||'')||0;
+    const age=Date.now()-date;
+    if(age<180000){
+      refresh.catch(()=>{});
+      return cached;
+    }
+    try{return await refresh}catch(_){return cached}
+  }
+  return refresh;
+}
+
+async function cachedImage(request){
+  const cache=await caches.open(IMAGE_CACHE);
+  const cached=await cache.match(request);
+  if(cached) return cached;
+  const response=await fetch(request,{cache:'no-store'});
+  if(response.ok) await cache.put(request,response.clone());
+  return response;
+}
+
 self.addEventListener('fetch',event=>{
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin) return;
+
+  if(event.request.method==='GET'&&url.pathname==='/api/market/image'){
+    event.respondWith(cachedImage(event.request));
+    return;
+  }
+
+  if(event.request.method==='GET'&&[
+    '/api/market/products','/api/market/categories','/api/market/product'
+  ].includes(url.pathname)){
+    event.respondWith(cachedMarket(event.request));
+    return;
+  }
+
   if(url.pathname.startsWith('/api/')){
     event.respondWith(fetch(event.request,{cache:'no-store'}));
     return;
