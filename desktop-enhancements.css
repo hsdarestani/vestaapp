@@ -1,4 +1,3 @@
 /* Vestaland visual entry point.
-   The previous desktop-only patch has been replaced by the v3 product design layer,
-   which handles mobile, tablet and desktop consistently. */
-@import url('/assets/redesign-v3.css');
+   Active Persian-native product design for mobile, tablet and desktop. */
+@import url('/assets/redesign-v3.css?v=20260901-1805');
