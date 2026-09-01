@@ -14,10 +14,20 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends Activity {
     private static final String APP_URL = "https://vestaland.smarbiz.sbs/";
     private WebView webView;
     private volatile boolean marketPaymentActive = false;
+    private final List<String> marketCartQueue = new ArrayList<>();
+    private int marketCartQueueIndex = 0;
+    private String marketCartHost = "";
+    private boolean marketCartBuilding = false;
 
     private boolean isVestaland(String host) {
         return host.equals("vestaland.smarbiz.sbs") || host.endsWith(".vestaland.smarbiz.sbs");
@@ -28,10 +38,41 @@ public class MainActivity extends Activity {
                 || host.equals("cutellashop.ir") || host.endsWith(".cutellashop.ir");
     }
 
+    private String storeBase(String store) {
+        if ("vesta".equals(store)) return "https://vesta-cosmetics.ir";
+        if ("cutella".equals(store)) return "https://cutellashop.ir";
+        return "";
+    }
+
     private void enableMarketFlowFromVestaland() {
         Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
         String host = current.getHost() == null ? "" : current.getHost();
         if (isVestaland(host)) marketPaymentActive = true;
+    }
+
+    private void expireStoreCookies(String base) {
+        CookieManager cm = CookieManager.getInstance();
+        String raw = cm.getCookie(base);
+        if (raw == null || raw.trim().isEmpty()) return;
+        String host = Uri.parse(base).getHost();
+        if (host == null) return;
+        for (String part : raw.split(";")) {
+            String name = part.split("=", 2)[0].trim();
+            if (name.isEmpty()) continue;
+            cm.setCookie(base, name + "=; Max-Age=0; Path=/; SameSite=Lax");
+            cm.setCookie("https://www." + host, name + "=; Max-Age=0; Path=/; SameSite=Lax");
+        }
+        cm.flush();
+    }
+
+    private void loadNextMarketCartStep() {
+        if (!marketCartBuilding) return;
+        if (marketCartQueueIndex >= marketCartQueue.size()) {
+            marketCartBuilding = false;
+            return;
+        }
+        String next = marketCartQueue.get(marketCartQueueIndex++);
+        webView.loadUrl(next);
     }
 
     private class MarketBridge {
@@ -42,10 +83,41 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void openStore() {
-            // Variable products fall back to the real WooCommerce product page.
-            // Mark the navigation as a market flow so its eventual banking gateway
-            // remains inside this WebView instead of opening an external browser.
             runOnUiThread(() -> enableMarketFlowFromVestaland());
+        }
+
+        @JavascriptInterface
+        public void checkoutStore(String store, String itemsJson) {
+            runOnUiThread(() -> {
+                try {
+                    String base = storeBase(store);
+                    if (base.isEmpty()) throw new Exception("فروشگاه نامعتبر است");
+                    JSONArray items = new JSONArray(itemsJson);
+                    if (items.length() < 1 || items.length() > 50) throw new Exception("سبد خرید نامعتبر است");
+
+                    enableMarketFlowFromVestaland();
+                    expireStoreCookies(base);
+                    marketCartQueue.clear();
+                    marketCartQueueIndex = 0;
+                    marketCartHost = Uri.parse(base).getHost();
+
+                    for (int i = 0; i < items.length(); i++) {
+                        JSONObject item = items.getJSONObject(i);
+                        int id = item.optInt("id", 0);
+                        int qty = Math.max(1, Math.min(20, item.optInt("quantity", 1)));
+                        if (id <= 0) continue;
+                        marketCartQueue.add(base + "/?add-to-cart=" + id + "&quantity=" + qty + "&vestaland_cart=1");
+                    }
+                    if (marketCartQueue.isEmpty()) throw new Exception("محصولی برای پرداخت نیست");
+                    marketCartQueue.add(base + "/checkout/?vestaland=1");
+                    marketCartBuilding = true;
+                    Toast.makeText(MainActivity.this, "دارم سبد واقعی " + ("vesta".equals(store) ? "وستا" : "کیوتلا") + " رو آماده می‌کنم…", Toast.LENGTH_SHORT).show();
+                    loadNextMarketCartStep();
+                } catch (Exception e) {
+                    marketCartBuilding = false;
+                    Toast.makeText(MainActivity.this, "ساخت سبد فروشگاه انجام نشد.", Toast.LENGTH_LONG).show();
+                }
+            });
         }
     }
 
@@ -63,7 +135,7 @@ public class MainActivity extends Activity {
         settings.setLoadsImagesAutomatically(true);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " VestalandBazaar/1.2");
+        settings.setUserAgentString(settings.getUserAgentString() + " VestalandBazaar/1.3");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -82,14 +154,14 @@ public class MainActivity extends Activity {
                 if (isMarketStore(host)) {
                     if (path.contains("order-received")) {
                         marketPaymentActive = false;
+                        marketCartBuilding = false;
+                        marketCartQueue.clear();
                         view.loadUrl(APP_URL + "?market_paid=1");
                         return true;
                     }
                     return false;
                 }
 
-                // Subscription payments are digital and remain disabled in the Bazaar build.
-                // Physical Vesta/Cutella checkout can use its own HTTPS gateway in-app.
                 if (host.equals("pay.hamooncloud.ir") && !marketPaymentActive) {
                     Toast.makeText(MainActivity.this,
                             "پرداخت اشتراک نسخه بازار از طریق پرداخت درون‌برنامه‌ای بازار فعال می‌شود.",
@@ -112,6 +184,17 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 Uri uri = Uri.parse(url == null ? "" : url);
                 String host = uri.getHost() == null ? "" : uri.getHost();
+                String path = uri.getPath() == null ? "" : uri.getPath();
+
+                if (marketCartBuilding && marketCartHost.equals(host)) {
+                    // The last queued URL is the checkout page. Do not advance once it is visible.
+                    if (!path.contains("checkout") || marketCartQueueIndex < marketCartQueue.size()) {
+                        webView.postDelayed(() -> loadNextMarketCartStep(), 180);
+                    } else {
+                        marketCartBuilding = false;
+                    }
+                }
+
                 if (isVestaland(host)) {
                     String js = "(() => {" +
                             "document.documentElement.classList.add('bazaar-app');" +
