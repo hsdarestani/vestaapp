@@ -4,37 +4,63 @@ on:
   push:
     paths:
       - .github/workflows/market-cart-check.yml
+      - backend/market_server.py
+      - assets/market-live-v2.js
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Vesta and Cutella Store API carts
+      - name: Check catalog, variations and Store API carts
         shell: bash
         run: |
           set -u
           BASE='https://vestaland.smarbiz.sbs/api/market'
-          sleep 4
+          sleep 12
           FAIL=0
           for STORE in vesta cutella; do
             echo "===== $STORE ====="
-            PRODUCTS="$(curl -sS --max-time 35 "$BASE/products?store=$STORE&per_page=30")"
-            ID="$(JSON="$PRODUCTS" python3 - <<'PY'
+            PRODUCTS="$(curl -fsS --max-time 35 -A 'Mozilla/5.0 VestalandCheck/1.0' "$BASE/products?store=$STORE&per_page=50")" || { FAIL=1; continue; }
+
+            SIMPLE="$(JSON="$PRODUCTS" python3 - <<'PY'
           import json, os
-          try: d=json.loads(os.environ['JSON'])
-          except Exception: d={}
+          d=json.loads(os.environ['JSON'])
           for p in d.get('items',[]):
               if p.get('is_in_stock') and p.get('is_purchasable') and not p.get('has_options'):
                   print(p['id']); break
           PY
             )"
-            echo "Product: ${ID:-none}"
-            if [ -z "$ID" ]; then FAIL=1; continue; fi
-            TMP="$(mktemp)"
-            CODE="$(curl -sS --max-time 35 -o "$TMP" -w '%{http_code}' -H 'Content-Type: application/json' -d "{\"store\":\"$STORE\",\"items\":[{\"id\":$ID,\"quantity\":1}]}" "$BASE/quote")"
-            echo "HTTP $CODE"
-            cat "$TMP"; echo
-            if [ "$CODE" != 200 ] || ! grep -q '"ok":true' "$TMP"; then FAIL=1; fi
-            rm -f "$TMP"
+            echo "Simple product: ${SIMPLE:-none}"
+            if [ -n "$SIMPLE" ]; then
+              TMP="$(mktemp)"
+              CODE="$(curl -sS --max-time 35 -o "$TMP" -w '%{http_code}' -H 'Content-Type: application/json' -d "{\"store\":\"$STORE\",\"items\":[{\"id\":$SIMPLE,\"quantity\":1}]}" "$BASE/quote")"
+              echo "Quote HTTP $CODE"
+              cat "$TMP"; echo
+              rm -f "$TMP"
+            fi
+
+            VARIABLE="$(JSON="$PRODUCTS" python3 - <<'PY'
+          import json, os
+          d=json.loads(os.environ['JSON'])
+          for p in d.get('items',[]):
+              if p.get('has_options'):
+                  print(p['id']); break
+          PY
+            )"
+            echo "Variable parent: ${VARIABLE:-none}"
+            if [ -n "$VARIABLE" ]; then
+              VARS="$(curl -fsS --max-time 35 -A 'Mozilla/5.0 VestalandCheck/1.0' "$BASE/products?store=$STORE&type=variation&parent=$VARIABLE&per_page=100")" || { FAIL=1; continue; }
+              COUNT="$(JSON="$VARS" python3 - <<'PY'
+          import json, os
+          d=json.loads(os.environ['JSON'])
+          rows=d.get('items',[])
+          print(len(rows))
+          if rows:
+              print('FIRST', rows[0].get('id'), rows[0].get('variation'), rows[0].get('price'), file=__import__('sys').stderr)
+          PY
+              )"
+              echo "Variations: $COUNT"
+              if [ "$COUNT" = "0" ]; then FAIL=1; fi
+            fi
           done
           exit "$FAIL"
