@@ -9,9 +9,8 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/desktop-enhancements.css" />
+  <link rel="stylesheet" href="/styles.css?v=20260901-1818" />
+  <link rel="stylesheet" href="/desktop-enhancements.css?v=20260901-1818" />
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -22,9 +21,7 @@
       </header>
 
       <div id="quizIntro" class="onboarding-card intro-card">
-        <div class="people-stack" aria-hidden="true">
-          <span>ن</span><span>س</span><span>م</span><span>+</span>
-        </div>
+        <div class="people-stack" aria-hidden="true"><span>ن</span><span>س</span><span>م</span><span>+</span></div>
         <p class="kicker">قبل از ورود</p>
         <h1>یه تست کوچیک داریم 😄</h1>
         <p class="lead">۴ تا سؤال کوتاهه. جواب درست و غلط هم نداره؛ فقط ببینیم با حال‌وهوای جمع جور درمیای یا نه.</p>
@@ -33,10 +30,7 @@
       </div>
 
       <div id="quizCard" class="onboarding-card quiz-card hidden">
-        <div class="quiz-topline">
-          <span id="quizCounter">سؤال ۱ از ۴</span>
-          <div class="progress"><span id="quizProgress"></span></div>
-        </div>
+        <div class="quiz-topline"><span id="quizCounter">سؤال ۱ از ۴</span><div class="progress"><span id="quizProgress"></span></div></div>
         <div class="question-visual" id="questionVisual">💬</div>
         <h2 id="quizQuestion"></h2>
         <div id="quizOptions" class="option-list"></div>
@@ -58,99 +52,61 @@
         <div class="trial-badge">۷ روز رایگان</div>
         <h2>اول امتحانش کن</h2>
         <p class="lead">هفت روز کامل استفاده کن. بعداً از بخش «حساب من» هر وقت خواستی اشتراک بگیر.</p>
-        <ul class="clean-list">
-          <li>دسترسی به دورهمی و مشورت</li>
-          <li>ثبت حال و چرخه</li>
-          <li>بازار وستا و کیوتلا</li>
-        </ul>
+        <ul class="clean-list"><li>دسترسی به دورهمی و مشورت</li><li>ثبت حال و چرخه</li><li>بازار وستا و کیوتلا</li></ul>
         <button class="primary-btn" data-action="enter-app">شروع ۷ روز رایگان</button>
       </div>
     </section>
 
     <main id="mainApp" class="main-app hidden">
       <header class="app-header">
-        <div>
-          <div class="mini-brand">وستالند</div>
-          <h1 id="sectionTitle">سلام 👋</h1>
-          <p id="sectionSubtitle" class="muted">امروز چه خبر؟</p>
-        </div>
+        <div><div class="mini-brand">وستالند</div><h1 id="sectionTitle">سلام 👋</h1><p id="sectionSubtitle" class="muted">امروز چه خبر؟</p></div>
         <button class="avatar-btn" data-action="open-profile" aria-label="حساب من"><span>و</span></button>
       </header>
 
       <section id="hangoutView" class="view active-view">
         <div class="home-shortcuts" aria-label="بخش‌های دورهمی">
-          <button class="shortcut active" data-feed="vent"><span class="shortcut-icon"><i data-lucide="heart"></i></span><b>درددل</b></button>
-          <button class="shortcut" data-feed="gossip"><span class="shortcut-icon"><i data-lucide="messages-square"></i></span><b>غیبت</b></button>
-          <button class="shortcut" data-feed="advice"><span class="shortcut-icon"><i data-lucide="message-circle-question"></i></span><b>مشورت</b></button>
-          <button class="shortcut" data-feed="challenge"><span class="shortcut-icon"><i data-lucide="sparkles"></i></span><b>چالش</b></button>
-          <button class="shortcut" data-feed="flex"><span class="shortcut-icon"><i data-lucide="crown"></i></span><b>پز</b></button>
+          <button class="shortcut active" data-feed="vent"><span class="shortcut-icon"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8Z"/></svg></span><b>درددل</b></button>
+          <button class="shortcut" data-feed="gossip"><span class="shortcut-icon"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3v-5a7 7 0 0 1-2-5c0-4 3.6-7 8-7h8a4 4 0 0 1 4 4Z"/><path d="M7 10h10M7 14h6"/></svg></span><b>غیبت</b></button>
+          <button class="shortcut" data-feed="advice"><span class="shortcut-icon"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.2 9a3 3 0 1 1 5.7 1.3c-.7 1.2-2.9 1.4-2.9 3.2"/><path d="M12 17.5h.01"/></svg></span><b>مشورت</b></button>
+          <button class="shortcut" data-feed="challenge"><span class="shortcut-icon"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.6 3.8L7 8.4l3.4 1.6L12 14l1.6-4 3.4-1.6-3.4-1.6Z"/><path d="m19 15-.8 1.9-1.7.8 1.7.8.8 2 .8-2 1.7-.8-1.7-.8Z"/></svg></span><b>چالش</b></button>
+          <button class="shortcut" data-feed="flex"><span class="shortcut-icon"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 4 4 5-7 5 7 4-4-2 13H5Z"/><path d="M5 19h14"/></svg></span><b>پز</b></button>
         </div>
 
         <button class="daily-card" data-feed="challenge">
-          <div>
-            <span class="daily-label">سؤال امروز</span>
-            <strong>اگه می‌تونستی یه جمله به خودِ دو سال پیشت بگی، چی می‌گفتی؟</strong>
-            <small>جواب بقیه رو هم ببین</small>
-          </div>
-          <i data-lucide="chevron-left"></i>
+          <div><span class="daily-label">سؤال امروز</span><strong>اگه می‌تونستی یه جمله به خودِ دو سال پیشت بگی، چی می‌گفتی؟</strong><small>جواب بقیه رو هم ببین</small></div>
+          <svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
 
         <nav class="segment-tabs" aria-label="فیلتر دورهمی">
-          <button class="segment active" data-feed="vent">درددل</button>
-          <button class="segment" data-feed="gossip">غیبت</button>
-          <button class="segment" data-feed="advice">مشورت</button>
-          <button class="segment" data-feed="challenge">چالش روزانه</button>
-          <button class="segment" data-feed="flex">پز</button>
+          <button class="segment active" data-feed="vent">درددل</button><button class="segment" data-feed="gossip">غیبت</button><button class="segment" data-feed="advice">مشورت</button><button class="segment" data-feed="challenge">چالش روزانه</button><button class="segment" data-feed="flex">پز</button>
         </nav>
 
-        <article id="dailyChallenge" class="challenge-card hidden">
-          <div><p class="kicker">چالش امروز</p><h2>جوابت رو بنویس 👇</h2></div>
-          <button class="secondary-btn" data-action="answer-challenge">نوشتن جواب</button>
-        </article>
+        <article id="dailyChallenge" class="challenge-card hidden"><div><p class="kicker">چالش امروز</p><h2>جوابت رو بنویس 👇</h2></div><button class="secondary-btn" data-action="answer-challenge">نوشتن جواب</button></article>
 
         <article class="composer-card">
-          <div class="composer-copy">
-            <p id="composerLabel" class="kicker">درددل</p>
-            <h2 id="composerTitle">هرچی تو دلت هست بنویس…</h2>
-          </div>
+          <div class="composer-copy"><p id="composerLabel" class="kicker">درددل</p><h2 id="composerTitle">هرچی تو دلت هست بنویس…</h2></div>
           <textarea id="postText" rows="3" placeholder="اینجا بنویس…"></textarea>
           <div class="composer-actions">
             <label id="anonymousWrap" class="switch-row"><input id="anonymousToggle" type="checkbox" /><span class="switch"></span><span>ناشناس باشه</span></label>
             <div class="composer-buttons">
-              <button class="text-icon-btn" id="photoButton" type="button"><i data-lucide="image-plus"></i><span>عکس</span></button>
+              <button class="text-icon-btn" id="photoButton" type="button"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/><path d="M19 8v6M16 11h6"/></svg><span>عکس</span></button>
               <button class="primary-btn compact" data-action="publish-post">انتشار</button>
             </div>
           </div>
         </article>
-
         <div id="feed" class="feed"></div>
       </section>
 
       <section id="selfView" class="view">
         <div class="page-title"><div><p class="kicker">خودم</p><h2>حالم چطوره؟</h2></div></div>
-
         <article class="mood-card">
-          <div class="mood-head">
-            <div><h3>امروز حالت چطوره؟</h3><p class="muted">یه گزینه بزن. فقط برای خودته.</p></div>
-            <div class="plant-wrap"><div id="plant" class="plant mood-3"><span class="leaf l1"></span><span class="leaf l2"></span><span class="leaf l3"></span><span class="leaf l4"></span><span class="stem"></span><span class="pot"></span></div></div>
-          </div>
-          <div class="mood-options" id="moodOptions">
-            <button data-mood="1">🥲<span>داغونم</span></button>
-            <button data-mood="2">😕<span>یکم خرابم</span></button>
-            <button data-mood="3" class="selected">😐<span>معمولی</span></button>
-            <button data-mood="4">🙂<span>خوبم</span></button>
-            <button data-mood="5">😍<span>عالی‌ام</span></button>
-          </div>
+          <div class="mood-head"><div><h3>امروز حالت چطوره؟</h3><p class="muted">یه گزینه بزن. فقط برای خودته.</p></div><div class="plant-wrap"><div id="plant" class="plant mood-3"><span class="leaf l1"></span><span class="leaf l2"></span><span class="leaf l3"></span><span class="leaf l4"></span><span class="stem"></span><span class="pot"></span></div></div></div>
+          <div class="mood-options" id="moodOptions"><button data-mood="1">🥲<span>داغونم</span></button><button data-mood="2">😕<span>یکم خرابم</span></button><button data-mood="3" class="selected">😐<span>معمولی</span></button><button data-mood="4">🙂<span>خوبم</span></button><button data-mood="5">😍<span>عالی‌ام</span></button></div>
           <p id="moodTip" class="soft-note">امروز لازم نیست فوق‌العاده باشی؛ یه کار کوچیک برای خودت کافیه.</p>
         </article>
-
         <article class="period-card">
           <div class="card-heading"><div><h3>چرخه من</h3><p class="muted">خلاصه این ماه</p></div><button class="link-btn" data-action="edit-cycle">ویرایش</button></div>
-          <div class="period-summary">
-            <div><small>پریود بعدی</small><strong id="nextPeriod">۵ روز دیگه</strong></div>
-            <div><small>طول چرخه</small><strong id="cycleLength">۲۸ روز</strong></div>
-            <div><small>حال امروز</small><strong id="savedMood">معمولی</strong></div>
-          </div>
+          <div class="period-summary"><div><small>پریود بعدی</small><strong id="nextPeriod">۵ روز دیگه</strong></div><div><small>طول چرخه</small><strong id="cycleLength">۲۸ روز</strong></div><div><small>حال امروز</small><strong id="savedMood">معمولی</strong></div></div>
           <div id="calendar" class="calendar"></div>
           <div class="legend"><span><i class="dot period"></i>پریود</span><span><i class="dot fertile"></i>بازه باروری</span><span><i class="dot today"></i>امروز</span></div>
         </article>
@@ -158,71 +114,45 @@
 
       <section id="marketView" class="view">
         <div class="page-title"><div><p class="kicker">بازار</p><h2>چی می‌خوای بخری؟</h2></div></div>
-        <label class="search-box"><i data-lucide="search"></i><input id="marketSearch" type="search" placeholder="جستجوی محصول" /></label>
-        <div id="marketCategories" class="market-categories">
-          <button class="category active" data-category="all">همه</button>
-          <button class="category" data-category="skin">پوست</button>
-          <button class="category" data-category="makeup">آرایش</button>
-          <button class="category" data-category="hair">مو</button>
-          <button class="category" data-category="body">بدن</button>
-          <button class="category" data-category="nail">ناخن</button>
-          <button class="category" data-category="accessory">اکسسوری</button>
-        </div>
+        <label class="search-box"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="marketSearch" type="search" placeholder="جستجوی محصول" /></label>
+        <div id="marketCategories" class="market-categories"><button class="category active" data-category="all">همه</button><button class="category" data-category="skin">پوست</button><button class="category" data-category="makeup">آرایش</button><button class="category" data-category="hair">مو</button><button class="category" data-category="body">بدن</button><button class="category" data-category="nail">ناخن</button><button class="category" data-category="accessory">اکسسوری</button></div>
         <div class="store-switch"><button class="active" data-store="all">همه</button><button data-store="cutella">کیوتلا</button><button data-store="vesta">وستا</button></div>
         <div id="productGrid" class="product-grid"></div>
       </section>
 
       <section id="profileView" class="view">
-        <div class="profile-card">
-          <div class="profile-avatar">و</div>
-          <div><h2>دختر وستالند</h2><p class="muted">عضو دورهمی</p></div>
-        </div>
-
+        <div class="profile-card"><div class="profile-avatar">و</div><div><h2>دختر وستالند</h2><p class="muted">عضو دورهمی</p></div></div>
         <section class="membership-box">
-          <div class="membership-head">
-            <div><p class="kicker">اشتراک من</p><h3 id="subscriptionStatus">۷ روز آزمایشی</h3></div>
-            <i data-lucide="badge-check"></i>
-          </div>
+          <div class="membership-head"><div><p class="kicker">اشتراک من</p><h3 id="subscriptionStatus">۷ روز آزمایشی</h3></div><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8 8.6a4 4 0 0 1 4.8-4.8 4 4 0 0 1 6.8 0 4 4 0 0 1 4.8 4.8 4 4 0 0 1 0 6.8 4 4 0 0 1-4.8 4.8 4 4 0 0 1-6.8 0 4 4 0 0 1-4.8-4.8 4 4 0 0 1 0-6.8Z"/><path d="m9 12 2 2 4-4"/></svg></div>
           <p class="muted">برای ادامه بعد از دوره آزمایشی، یکی از پلن‌ها رو انتخاب کن.</p>
           <div class="pay-plans">
-            <button data-pay-plan="1m"><span><b>۱ ماهه</b><small>۴۹۰٬۰۰۰ تومان</small></span><i data-lucide="chevron-left"></i></button>
-            <button class="recommended" data-pay-plan="3m"><span><b>۳ ماهه</b><small>۱٬۲۹۰٬۰۰۰ تومان</small></span><em>پیشنهادی</em><i data-lucide="chevron-left"></i></button>
-            <button data-pay-plan="6m"><span><b>۶ ماهه</b><small>۲٬۱۹۰٬۰۰۰ تومان</small></span><i data-lucide="chevron-left"></i></button>
+            <button data-pay-plan="1m"><span><b>۱ ماهه</b><small>۴۹۰٬۰۰۰ تومان</small></span><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button class="recommended" data-pay-plan="3m"><span><b>۳ ماهه</b><small>۱٬۲۹۰٬۰۰۰ تومان</small></span><em>پیشنهادی</em><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button data-pay-plan="6m"><span><b>۶ ماهه</b><small>۲٬۱۹۰٬۰۰۰ تومان</small></span><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
           </div>
-          <p class="payment-note"><i data-lucide="shield-check"></i> پرداخت امن از طریق زیبال / هامون‌کلود</p>
+          <p class="payment-note"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="m9 12 2 2 4-4"/></svg> پرداخت امن از طریق زیبال / هامون‌کلود</p>
         </section>
-
         <div class="profile-menu">
-          <button><span>پست‌های من</span><b id="myPostCount">۰</b></button>
-          <button><span>ذخیره‌شده‌ها</span><b>۰</b></button>
-          <button><span>اعلان‌ها</span><i data-lucide="chevron-left"></i></button>
-          <button><span>حریم خصوصی و امنیت</span><i data-lucide="chevron-left"></i></button>
-          <button><span>قوانین دورهمی</span><i data-lucide="chevron-left"></i></button>
+          <button><span>پست‌های من</span><b id="myPostCount">۰</b></button><button><span>ذخیره‌شده‌ها</span><b>۰</b></button>
+          <button><span>اعلان‌ها</span><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+          <button><span>حریم خصوصی و امنیت</span><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+          <button><span>قوانین دورهمی</span><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
         </div>
         <button class="danger-link" data-action="logout">خروج از حساب</button>
       </section>
 
       <nav class="bottom-nav" aria-label="ناوبری اصلی">
-        <button class="active" data-view="hangout"><i data-lucide="home"></i><b>دورهمی</b></button>
-        <button data-view="self"><i data-lucide="heart-pulse"></i><b>خودم</b></button>
-        <button data-view="market"><i data-lucide="shopping-bag"></i><b>بازار</b></button>
-        <button data-view="profile"><i data-lucide="user-round"></i><b>حساب من</b></button>
+        <button class="active" data-view="hangout"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><b>دورهمی</b></button>
+        <button data-view="self"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 12 5a5.5 5.5 0 0 0-10 3.5c0 2.3 1.5 4 3 5.5l7 7Z"/><path d="M3.2 12H8l2-3 3 6 2-3h5.8"/></svg><b>خودم</b></button>
+        <button data-view="market"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l1 13H5L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><b>بازار</b></button>
+        <button data-view="profile"><svg class="v-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><b>حساب من</b></button>
       </nav>
     </main>
 
-    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-      <div class="modal-backdrop" data-action="close-modal"></div>
-      <div class="modal-sheet">
-        <div class="modal-handle"></div>
-        <button class="modal-close" data-action="close-modal" aria-label="بستن">×</button>
-        <div id="modalContent"></div>
-      </div>
-    </div>
-
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-backdrop" data-action="close-modal"></div><div class="modal-sheet"><div class="modal-handle"></div><button class="modal-close" data-action="close-modal" aria-label="بستن">×</button><div id="modalContent"></div></div></div>
     <div id="toast" class="toast hidden"></div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-  <script src="/app.js" defer></script>
-  <script src="/assets/native.js" defer></script>
+  <script src="/app.js?v=20260901-1818" defer></script>
+  <script src="/assets/native.js?v=20260901-1818" defer></script>
 </body>
 </html>
