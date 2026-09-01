@@ -21,16 +21,23 @@ jobs:
         run: |
           test -s index.html
           test -s styles.css
+          test -s desktop-enhancements.css
           test -s app.js
+          test -s assets/native.js
+          test -s assets/market-live.js
+          test -s assets/market-live.css
           test -s backend/server.py
+          test -s backend/market_server.py
           test -s backend/smoke_test.py
           grep -q "وستالند" index.html
           node --check app.js
-          python3 -m py_compile backend/server.py backend/smoke_test.py
+          node --check assets/native.js
+          node --check assets/market-live.js
+          python3 -m py_compile backend/server.py backend/market_server.py backend/smoke_test.py
           python3 backend/smoke_test.py
 
       - name: Prepare package
-        run: tar -czf /tmp/vestaland-site.tgz index.html styles.css app.js manifest.webmanifest sw.js icon.svg backend
+        run: tar -czf /tmp/vestaland-site.tgz index.html styles.css desktop-enhancements.css app.js manifest.webmanifest sw.js icon.svg assets backend
 
       - name: Install SSH helper
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
@@ -45,7 +52,6 @@ jobs:
           REMOTE="$HOST"
           if [[ "$REMOTE" != *"@"* ]]; then REMOTE="root@$REMOTE"; fi
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
-
           sshpass -p "$PASS" scp $SSH_OPTS /tmp/vestaland-site.tgz "$REMOTE:/tmp/vestaland-site.tgz"
 
           sshpass -p "$PASS" ssh $SSH_OPTS "$REMOTE" 'bash -s' <<'REMOTE_SCRIPT'
@@ -53,6 +59,7 @@ jobs:
           DOMAIN="vestaland.smarbiz.sbs"
           ROOT="/var/www/$DOMAIN"
           API_PORT="8765"
+          MARKET_PORT="8766"
 
           if ! command -v nginx >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
             apt-get update -qq
@@ -91,18 +98,43 @@ jobs:
           WantedBy=multi-user.target
           SERVICE
 
+          cat > /etc/systemd/system/vestaland-market.service <<SERVICE
+          [Unit]
+          Description=Vestaland Live WooCommerce Market API
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=www-data
+          Group=www-data
+          WorkingDirectory=$ROOT
+          ExecStart=/usr/bin/python3 $ROOT/backend/market_server.py --host 127.0.0.1 --port $MARKET_PORT
+          Restart=always
+          RestartSec=2
+          NoNewPrivileges=true
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
+
           systemctl daemon-reload
-          systemctl enable vestaland-api.service >/dev/null 2>&1 || true
+          systemctl enable vestaland-api.service vestaland-market.service >/dev/null 2>&1 || true
           systemctl restart vestaland-api.service
+          systemctl restart vestaland-market.service
 
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -fsS --max-time 2 "http://127.0.0.1:$API_PORT/api/health" | grep -q '"ok":true'; then
-              echo "Vestaland API is healthy."
+            API_OK=0; MARKET_OK=0
+            curl -fsS --max-time 2 "http://127.0.0.1:$API_PORT/api/health" | grep -q '"ok":true' && API_OK=1 || true
+            curl -fsS --max-time 2 "http://127.0.0.1:$MARKET_PORT/api/market/health" | grep -q '"ok":true' && MARKET_OK=1 || true
+            if [ "$API_OK" = 1 ] && [ "$MARKET_OK" = 1 ]; then
+              echo "Vestaland APIs are healthy."
               break
             fi
             if [ "$i" = "10" ]; then
-              systemctl status vestaland-api.service --no-pager || true
-              journalctl -u vestaland-api.service -n 80 --no-pager || true
+              systemctl status vestaland-api.service vestaland-market.service --no-pager || true
+              journalctl -u vestaland-market.service -n 80 --no-pager || true
               exit 1
             fi
             sleep 1
@@ -110,6 +142,8 @@ jobs:
 
           CONF="/etc/nginx/sites-available/$DOMAIN"
           mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+
+          write_http_conf() {
           cat > "$CONF" <<NGINX
           server {
               listen 80;
@@ -117,12 +151,17 @@ jobs:
               server_name $DOMAIN;
               root $ROOT;
               index index.html;
-
-              location /.well-known/acme-challenge/ {
-                  root $ROOT;
-                  try_files \$uri =404;
+              location /.well-known/acme-challenge/ { root $ROOT; try_files \$uri =404; }
+              location /api/market/ {
+                  proxy_pass http://127.0.0.1:$MARKET_PORT;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
+                  proxy_read_timeout 45s;
+                  add_header Cache-Control "no-store" always;
               }
-
               location /api/ {
                   proxy_pass http://127.0.0.1:$API_PORT;
                   proxy_http_version 1.1;
@@ -133,17 +172,18 @@ jobs:
                   proxy_read_timeout 30s;
                   add_header Cache-Control "no-store" always;
               }
-
               location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location / { try_files \$uri \$uri/ /index.html; }
               location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
-                  expires 1h;
-                  add_header Cache-Control "public, max-age=3600";
+                  expires -1;
+                  add_header Cache-Control "no-store, no-cache, must-revalidate" always;
                   try_files \$uri =404;
               }
           }
           NGINX
+          }
+          write_http_conf
           ln -sfn "$CONF" "/etc/nginx/sites-enabled/$DOMAIN"
           rm -f /etc/nginx/sites-enabled/default
           nginx -t
@@ -151,52 +191,16 @@ jobs:
 
           CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
           CERT_OK=0
-          if [ -s "$CERT_DIR/fullchain.pem" ] && [ -s "$CERT_DIR/privkey.pem" ]; then
-            CERT_OK=1
+          if [ -s "$CERT_DIR/fullchain.pem" ] && [ -s "$CERT_DIR/privkey.pem" ]; then CERT_OK=1
+          elif certbot certonly --webroot -w "$ROOT" -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email; then CERT_OK=1
+          fi
+          if [ "$CERT_OK" -eq 1 ]; then CERT="$CERT_DIR/fullchain.pem"; KEY="$CERT_DIR/privkey.pem";
           else
-            if certbot certonly --webroot -w "$ROOT" -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email; then
-              CERT_OK=1
-            fi
+            CERT="/etc/ssl/certs/$DOMAIN.crt"; KEY="/etc/ssl/private/$DOMAIN.key"
+            if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout "$KEY" -out "$CERT" -subj "/CN=$DOMAIN" >/dev/null 2>&1; fi
           fi
 
-          if [ "$CERT_OK" -eq 1 ]; then
-            CERT="$CERT_DIR/fullchain.pem"
-            KEY="$CERT_DIR/privkey.pem"
-          else
-            CERT="/etc/ssl/certs/$DOMAIN.crt"
-            KEY="/etc/ssl/private/$DOMAIN.key"
-            if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then
-              openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout "$KEY" -out "$CERT" -subj "/CN=$DOMAIN" >/dev/null 2>&1
-            fi
-          fi
-
-          cat > "$CONF" <<NGINX
-          server {
-              listen 80;
-              listen [::]:80;
-              server_name $DOMAIN;
-              root $ROOT;
-              index index.html;
-
-              location /.well-known/acme-challenge/ { root $ROOT; try_files \$uri =404; }
-              location /api/ {
-                  proxy_pass http://127.0.0.1:$API_PORT;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  add_header Cache-Control "no-store" always;
-              }
-              location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
-              location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
-              location / { try_files \$uri \$uri/ /index.html; }
-              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
-                  expires 1h;
-                  add_header Cache-Control "public, max-age=3600";
-                  try_files \$uri =404;
-              }
-          }
+          cat >> "$CONF" <<NGINX
 
           server {
               listen 443 ssl;
@@ -208,7 +212,16 @@ jobs:
               ssl_certificate_key $KEY;
               ssl_protocols TLSv1.2 TLSv1.3;
               ssl_session_cache shared:SSL:10m;
-
+              location /api/market/ {
+                  proxy_pass http://127.0.0.1:$MARKET_PORT;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
+                  proxy_read_timeout 45s;
+                  add_header Cache-Control "no-store" always;
+              }
               location /api/ {
                   proxy_pass http://127.0.0.1:$API_PORT;
                   proxy_http_version 1.1;
@@ -223,8 +236,8 @@ jobs:
               location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location / { try_files \$uri \$uri/ /index.html; }
               location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
-                  expires 1h;
-                  add_header Cache-Control "public, max-age=3600";
+                  expires -1;
+                  add_header Cache-Control "no-store, no-cache, must-revalidate" always;
                   try_files \$uri =404;
               }
           }
@@ -232,9 +245,10 @@ jobs:
 
           nginx -t
           systemctl reload nginx
-          echo "Local HTTP: $(curl -sS -o /dev/null -w '%{http_code}' -H "Host: $DOMAIN" http://127.0.0.1/)"
-          echo "Local HTTPS: $(curl -ksS -o /dev/null -w '%{http_code}' --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/")"
-          echo "API health: $(curl -sS "http://127.0.0.1:$API_PORT/api/health")"
+          echo "API health: $(curl -sS http://127.0.0.1:$API_PORT/api/health)"
+          echo "Market health: $(curl -sS http://127.0.0.1:$MARKET_PORT/api/market/health)"
+          echo "Vesta sample: $(curl -sS --max-time 25 'http://127.0.0.1:'$MARKET_PORT'/api/market/products?store=vesta&per_page=1' | head -c 500)"
+          echo "Cutella sample: $(curl -sS --max-time 25 'http://127.0.0.1:'$MARKET_PORT'/api/market/products?store=cutella&per_page=1' | head -c 500)"
           REMOTE_SCRIPT
 
       - name: Verify production
@@ -243,11 +257,20 @@ jobs:
           for i in 1 2 3 4 5 6; do
             CODE=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs")
             API=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/health")
-            echo "Attempt $i: https=$CODE api=$API"
-            if [ "$CODE" = "200" ] && grep -q "وستالند" /tmp/body 2>/dev/null && echo "$API" | grep -q '"ok":true'; then
-              echo "Vestaland frontend + API are live over HTTPS."
+            MARKET=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market/health")
+            VESTA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=vesta&per_page=1")
+            CUTELLA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=cutella&per_page=1")
+            echo "Attempt $i: https=$CODE api=$API market=$MARKET"
+            if [ "$CODE" = "200" ] && grep -q "وستالند" /tmp/body 2>/dev/null \
+              && echo "$API" | grep -q '"ok":true' \
+              && echo "$MARKET" | grep -q '"ok":true' \
+              && echo "$VESTA" | grep -q '"items"' \
+              && echo "$CUTELLA" | grep -q '"items"'; then
+              echo "Vestaland frontend + community API + both live stores are reachable."
               exit 0
             fi
+            echo "Vesta: ${VESTA:0:500}"
+            echo "Cutella: ${CUTELLA:0:500}"
             sleep 5
           done
           exit 1
