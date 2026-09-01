@@ -1,0 +1,69 @@
+name: Verify Hamoon marketplace payment domain
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/market-payment-domain-check.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start a safe pending marketplace payment
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://vestaland.smarbiz.sbs'
+          curl -fsS --retry 4 --retry-delay 3 --max-time 40 "$BASE/api/market/products?store=cutella&per_page=30" -o /tmp/products.json
+          PRODUCT_ID="$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/products.json'))
+          for p in d.get('items',[]):
+              if p.get('is_in_stock') and p.get('is_purchasable') and not p.get('has_options') and int(p.get('price') or 0)>0:
+                  print(int(p['id']))
+                  break
+          PY
+          )"
+          test -n "$PRODUCT_ID"
+          python3 - "$PRODUCT_ID" <<'PY' > /tmp/start.json
+          import json,sys
+          pid=int(sys.argv[1])
+          print(json.dumps({
+            'store':'cutella',
+            'items':[{'id':pid,'quantity':1}],
+            'billing_address':{
+              'first_name':'تست','last_name':'وستالند','phone':'09120000000',
+              'email':'','city':'تهران','state':'تهران',
+              'address_1':'تست فنی درگاه - سفارش واقعی نیست','postcode':'1111111111','country':'IR'
+            }
+          },ensure_ascii=False))
+          PY
+          curl -fsS --max-time 45 -H 'Content-Type: application/json' --data-binary @/tmp/start.json "$BASE/api/market-payment/start" -o /tmp/payment.json
+          cat /tmp/payment.json
+          HAMOON_URL="$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/payment.json'))
+          assert d.get('ok') is True
+          u=d.get('url','')
+          assert u.startswith('https://pay.hamooncloud.ir/payments/vestaland-market/start?intent=')
+          print(u)
+          PY
+          )"
+          echo "Hamoon URL accepted."
+
+          CODE="$(curl -ksS --max-time 35 -D /tmp/headers -o /tmp/hamoon-body -w '%{http_code}' "$HAMOON_URL")"
+          echo "Hamoon start HTTP $CODE"
+          test "$CODE" = '302'
+          LOCATION="$(awk 'BEGIN{IGNORECASE=1}/^location:/{sub(/\r$/,"");sub(/^[^:]+:[[:space:]]*/,"");print;exit}' /tmp/headers)"
+          echo "Redirect host: $(printf '%s' "$LOCATION" | cut -d/ -f3)"
+          printf '%s' "$LOCATION" | grep -q '^https://gateway.zibal.ir/start/'
+
+          FINAL_HTML="$(curl -ksSL --max-time 35 "$HAMOON_URL" | head -c 250000 || true)"
+          if printf '%s' "$FINAL_HTML" | grep -Eq 'دامنه غیرمجاز|دامنه ارجاع.{0,30}نامعتبر'; then
+            echo 'Zibal still reports an invalid referral/callback domain.' >&2
+            exit 1
+          fi
+          echo 'Hamoon -> Zibal pending transaction opened without invalid-domain error. No payment was performed.'
