@@ -27,11 +27,10 @@
   const renderIcons=(root=document)=>root.querySelectorAll('i[data-lucide]').forEach(n=>{const x=document.createElement('span');x.innerHTML=svg(n.dataset.lucide);n.replaceWith(x.firstElementChild)});
   const upgradeProducts=()=>document.querySelectorAll('.product-card').forEach(c=>{const b=c.querySelector('.product-image'),t=c.querySelector('h3')?.textContent?.trim();if(!b||b.dataset.native==='1')return;b.dataset.native='1';b.innerHTML=svg(productIcons[t]||'shopping-bag')});
   const upgradeMedia=()=>document.querySelectorAll('.photo-placeholder').forEach(b=>{if(b.dataset.native==='1')return;b.dataset.native='1';const label=b.textContent.trim();b.innerHTML=`<div class="media-placeholder-inner">${svg('image')}<span>${label}</span></div>`});
-  function addAsset(tag,attrs){const el=document.createElement(tag);Object.assign(el,attrs);document[tag==='link'?'head':'body'].appendChild(el)}
   function loadMarketAssets(){
-    if(!document.querySelector('link[data-vestaland-market]'))addAsset('link',{rel:'stylesheet',href:'/assets/market-live.css?v=20260901-3',dataset:{}});
-    if(!document.querySelector('script[data-vestaland-market-main]')){const s=document.createElement('script');s.src='/assets/market-live-v2.js?v=20260901-3';s.dataset.vestalandMarketMain='1';document.body.appendChild(s)}
-    if(!document.querySelector('script[data-vestaland-market-native]')){const s=document.createElement('script');s.src='/assets/market-native-checkout.js?v=20260901-3';s.dataset.vestalandMarketNative='1';document.body.appendChild(s)}
+    if(!document.querySelector('link[data-vestaland-market]')){const l=document.createElement('link');l.rel='stylesheet';l.href='/assets/market-live.css?v=20260901-4';l.dataset.vestalandMarket='1';document.head.appendChild(l)}
+    if(!document.querySelector('script[data-vestaland-market-main]')){const s=document.createElement('script');s.src='/assets/market-live-v2.js?v=20260901-4';s.dataset.vestalandMarketMain='1';document.body.appendChild(s)}
+    if(!document.querySelector('script[data-vestaland-market-native]')){const s=document.createElement('script');s.src='/assets/market-native-checkout.js?v=20260901-4';s.dataset.vestalandMarketNative='1';document.body.appendChild(s)}
   }
   window.state=window.state||{marketStore:'all'};
   document.addEventListener('click',e=>{const b=e.target.closest('.store-switch [data-store]');if(b)window.state.marketStore=b.dataset.store});
