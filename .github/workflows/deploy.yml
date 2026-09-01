@@ -19,6 +19,7 @@ jobs:
 
       - name: Validate app files
         run: |
+          set -euo pipefail
           test -s index.html
           test -s styles.css
           test -s desktop-enhancements.css
@@ -26,14 +27,19 @@ jobs:
           test -s assets/native.js
           test -s assets/market-live.js
           test -s assets/market-live.css
+          test -s assets/market-native-checkout.js
+          test -s assets/market-payment-hamoon.js
           test -s backend/server.py
           test -s backend/market_server.py
+          test -s backend/market_payment_server.py
           test -s backend/smoke_test.py
           grep -q "وستالند" index.html
           node --check app.js
           node --check assets/native.js
           node --check assets/market-live.js
-          python3 -m py_compile backend/server.py backend/market_server.py backend/smoke_test.py
+          node --check assets/market-native-checkout.js
+          node --check assets/market-payment-hamoon.js
+          python3 -m py_compile backend/server.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py
           python3 backend/smoke_test.py
 
       - name: Prepare package
@@ -60,6 +66,7 @@ jobs:
           ROOT="/var/www/$DOMAIN"
           API_PORT="8765"
           MARKET_PORT="8766"
+          PAYMENT_PORT="8767"
 
           if ! command -v nginx >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
             apt-get update -qq
@@ -82,7 +89,6 @@ jobs:
           [Unit]
           Description=Vestaland Community API
           After=network.target
-
           [Service]
           Type=simple
           User=www-data
@@ -93,7 +99,6 @@ jobs:
           RestartSec=2
           NoNewPrivileges=true
           PrivateTmp=true
-
           [Install]
           WantedBy=multi-user.target
           SERVICE
@@ -103,7 +108,6 @@ jobs:
           Description=Vestaland Live WooCommerce Market API
           After=network-online.target
           Wants=network-online.target
-
           [Service]
           Type=simple
           User=www-data
@@ -114,27 +118,47 @@ jobs:
           RestartSec=2
           NoNewPrivileges=true
           PrivateTmp=true
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
 
+          cat > /etc/systemd/system/vestaland-market-payment.service <<SERVICE
+          [Unit]
+          Description=Vestaland Hamoon Marketplace Payment API
+          After=network-online.target
+          Wants=network-online.target
+          [Service]
+          Type=simple
+          User=www-data
+          Group=www-data
+          WorkingDirectory=$ROOT
+          ExecStart=/usr/bin/python3 $ROOT/backend/market_payment_server.py --host 127.0.0.1 --port $PAYMENT_PORT --db /var/lib/vestaland/market-payments.db
+          Restart=always
+          RestartSec=2
+          NoNewPrivileges=true
+          PrivateTmp=true
           [Install]
           WantedBy=multi-user.target
           SERVICE
 
           systemctl daemon-reload
-          systemctl enable vestaland-api.service vestaland-market.service >/dev/null 2>&1 || true
+          systemctl enable vestaland-api.service vestaland-market.service vestaland-market-payment.service >/dev/null 2>&1 || true
           systemctl restart vestaland-api.service
           systemctl restart vestaland-market.service
+          systemctl restart vestaland-market-payment.service
 
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            API_OK=0; MARKET_OK=0
+            API_OK=0; MARKET_OK=0; PAYMENT_OK=0
             curl -fsS --max-time 2 "http://127.0.0.1:$API_PORT/api/health" | grep -q '"ok":true' && API_OK=1 || true
             curl -fsS --max-time 2 "http://127.0.0.1:$MARKET_PORT/api/market/health" | grep -q '"ok":true' && MARKET_OK=1 || true
-            if [ "$API_OK" = 1 ] && [ "$MARKET_OK" = 1 ]; then
+            curl -fsS --max-time 2 "http://127.0.0.1:$PAYMENT_PORT/api/market-payment/health" | grep -q '"ok":true' && PAYMENT_OK=1 || true
+            if [ "$API_OK" = 1 ] && [ "$MARKET_OK" = 1 ] && [ "$PAYMENT_OK" = 1 ]; then
               echo "Vestaland APIs are healthy."
               break
             fi
             if [ "$i" = "10" ]; then
-              systemctl status vestaland-api.service vestaland-market.service --no-pager || true
-              journalctl -u vestaland-market.service -n 80 --no-pager || true
+              systemctl status vestaland-api.service vestaland-market.service vestaland-market-payment.service --no-pager || true
+              journalctl -u vestaland-market-payment.service -n 80 --no-pager || true
               exit 1
             fi
             sleep 1
@@ -143,15 +167,18 @@ jobs:
           CONF="/etc/nginx/sites-available/$DOMAIN"
           mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 
-          write_http_conf() {
-          cat > "$CONF" <<NGINX
-          server {
-              listen 80;
-              listen [::]:80;
-              server_name $DOMAIN;
-              root $ROOT;
-              index index.html;
-              location /.well-known/acme-challenge/ { root $ROOT; try_files \$uri =404; }
+          write_locations() {
+            cat <<NGINX
+              location /api/market-payment/ {
+                  proxy_pass http://127.0.0.1:$PAYMENT_PORT;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
+                  proxy_read_timeout 45s;
+                  add_header Cache-Control "no-store" always;
+              }
               location /api/market/ {
                   proxy_pass http://127.0.0.1:$MARKET_PORT;
                   proxy_http_version 1.1;
@@ -172,18 +199,26 @@ jobs:
                   proxy_read_timeout 30s;
                   add_header Cache-Control "no-store" always;
               }
+NGINX
+          }
+
+          cat > "$CONF" <<NGINX
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name $DOMAIN;
+              root $ROOT;
+              index index.html;
+              location /.well-known/acme-challenge/ { root $ROOT; try_files \$uri =404; }
+              location /api/market-payment/ { proxy_pass http://127.0.0.1:$PAYMENT_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
+              location /api/market/ { proxy_pass http://127.0.0.1:$MARKET_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
+              location /api/ { proxy_pass http://127.0.0.1:$API_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 30s; add_header Cache-Control "no-store" always; }
               location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location / { try_files \$uri \$uri/ /index.html; }
-              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
-                  expires -1;
-                  add_header Cache-Control "no-store, no-cache, must-revalidate" always;
-                  try_files \$uri =404;
-              }
+              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ { expires -1; add_header Cache-Control "no-store, no-cache, must-revalidate" always; try_files \$uri =404; }
           }
           NGINX
-          }
-          write_http_conf
           ln -sfn "$CONF" "/etc/nginx/sites-enabled/$DOMAIN"
           rm -f /etc/nginx/sites-enabled/default
           nginx -t
@@ -212,34 +247,13 @@ jobs:
               ssl_certificate_key $KEY;
               ssl_protocols TLSv1.2 TLSv1.3;
               ssl_session_cache shared:SSL:10m;
-              location /api/market/ {
-                  proxy_pass http://127.0.0.1:$MARKET_PORT;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_read_timeout 45s;
-                  add_header Cache-Control "no-store" always;
-              }
-              location /api/ {
-                  proxy_pass http://127.0.0.1:$API_PORT;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_read_timeout 30s;
-                  add_header Cache-Control "no-store" always;
-              }
+              location /api/market-payment/ { proxy_pass http://127.0.0.1:$PAYMENT_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
+              location /api/market/ { proxy_pass http://127.0.0.1:$MARKET_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 45s; add_header Cache-Control "no-store" always; }
+              location /api/ { proxy_pass http://127.0.0.1:$API_PORT; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 30s; add_header Cache-Control "no-store" always; }
               location = /sw.js { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location = /index.html { add_header Cache-Control "no-cache"; try_files \$uri =404; }
               location / { try_files \$uri \$uri/ /index.html; }
-              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ {
-                  expires -1;
-                  add_header Cache-Control "no-store, no-cache, must-revalidate" always;
-                  try_files \$uri =404;
-              }
+              location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|webmanifest)$ { expires -1; add_header Cache-Control "no-store, no-cache, must-revalidate" always; try_files \$uri =404; }
           }
           NGINX
 
@@ -247,8 +261,7 @@ jobs:
           systemctl reload nginx
           echo "API health: $(curl -sS http://127.0.0.1:$API_PORT/api/health)"
           echo "Market health: $(curl -sS http://127.0.0.1:$MARKET_PORT/api/market/health)"
-          echo "Vesta sample: $(curl -sS --max-time 25 'http://127.0.0.1:'$MARKET_PORT'/api/market/products?store=vesta&per_page=1' | head -c 500)"
-          echo "Cutella sample: $(curl -sS --max-time 25 'http://127.0.0.1:'$MARKET_PORT'/api/market/products?store=cutella&per_page=1' | head -c 500)"
+          echo "Payment health: $(curl -sS http://127.0.0.1:$PAYMENT_PORT/api/market-payment/health)"
           REMOTE_SCRIPT
 
       - name: Verify production
@@ -258,19 +271,19 @@ jobs:
             CODE=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs")
             API=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/health")
             MARKET=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market/health")
+            PAYMENT=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market-payment/health")
             VESTA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=vesta&per_page=1")
             CUTELLA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=cutella&per_page=1")
-            echo "Attempt $i: https=$CODE api=$API market=$MARKET"
+            echo "Attempt $i: https=$CODE api=$API market=$MARKET payment=$PAYMENT"
             if [ "$CODE" = "200" ] && grep -q "وستالند" /tmp/body 2>/dev/null \
               && echo "$API" | grep -q '"ok":true' \
               && echo "$MARKET" | grep -q '"ok":true' \
+              && echo "$PAYMENT" | grep -q '"ok":true' \
               && echo "$VESTA" | grep -q '"items"' \
               && echo "$CUTELLA" | grep -q '"items"'; then
-              echo "Vestaland frontend + community API + both live stores are reachable."
+              echo "Vestaland frontend + community + market + Hamoon payment API are reachable."
               exit 0
             fi
-            echo "Vesta: ${VESTA:0:500}"
-            echo "Cutella: ${CUTELLA:0:500}"
             sleep 5
           done
           exit 1
