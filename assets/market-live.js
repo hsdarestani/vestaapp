@@ -11,6 +11,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money = n => new Intl.NumberFormat('fa-IR').format(Number(n || 0));
   const storeName = s => s === 'vesta' ? 'وستا' : 'کیوتلا';
+  let booted = false;
 
   function saveCart(){ localStorage.setItem('vestaland:market-cart', JSON.stringify(market.cart)); updateCartBar(); }
   function currentStore(){ return window.state?.marketStore || 'all'; }
@@ -200,12 +201,30 @@
     let timer; $('#marketSearch')?.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(loadProducts,350);});
   }
 
-  document.addEventListener('DOMContentLoaded',()=>{
-    // Remove fake seeded cards immediately and take full ownership of the market view.
-    market.products=[]; renderProducts(); ensureCartBar(); updateCartBar(); bind();
+  function boot(){
+    if(booted){
+      const marketView=$('#marketView');
+      if(marketView?.classList.contains('active-view') && !market.products.length && !market.loading) onStoreChanged();
+      return;
+    }
+    booted = true;
+    market.products=[];
+    renderProducts();
+    ensureCartBar();
+    updateCartBar();
+    bind();
     const marketView=$('#marketView');
     if(marketView?.classList.contains('active-view')) onStoreChanged();
     const done=new URLSearchParams(location.search).get('market_paid');
-    if(done==='1'){ localStorage.removeItem('vestaland:market-cart'); market.cart={vesta:[],cutella:[]}; history.replaceState({},'',location.pathname); setTimeout(()=>window.toast?.('پرداخت انجام شد؛ وضعیت نهایی سفارش رو فروشگاه ثبت می‌کنه ✓'),400); }
-  });
+    if(done==='1'){
+      localStorage.removeItem('vestaland:market-cart');
+      market.cart={vesta:[],cutella:[]};
+      history.replaceState({},'',location.pathname);
+      setTimeout(()=>window.toast?.('پرداخت انجام شد؛ وضعیت نهایی سفارش رو فروشگاه ثبت می‌کنه ✓'),400);
+    }
+  }
+
+  window.__vestalandMarketBoot = boot;
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
 })();
