@@ -28,20 +28,24 @@ public class MainActivity extends Activity {
                 || host.equals("cutellashop.ir") || host.endsWith(".cutellashop.ir");
     }
 
+    private void enableMarketFlowFromVestaland() {
+        Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
+        String host = current.getHost() == null ? "" : current.getHost();
+        if (isVestaland(host)) marketPaymentActive = true;
+    }
+
     private class MarketBridge {
         @JavascriptInterface
         public void beginPayment() {
-            runOnUiThread(() -> {
-                Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
-                String host = current.getHost() == null ? "" : current.getHost();
-                if (isVestaland(host)) marketPaymentActive = true;
-            });
+            runOnUiThread(() -> enableMarketFlowFromVestaland());
         }
 
         @JavascriptInterface
         public void openStore() {
-            // Intentionally no privileged action. This method exists only so web code
-            // can use the same flow in Browser and Android WebView.
+            // Variable products fall back to the real WooCommerce product page.
+            // Mark the navigation as a market flow so its eventual banking gateway
+            // remains inside this WebView instead of opening an external browser.
+            runOnUiThread(() -> enableMarketFlowFromVestaland());
         }
     }
 
@@ -59,7 +63,7 @@ public class MainActivity extends Activity {
         settings.setLoadsImagesAutomatically(true);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " VestalandBazaar/1.1");
+        settings.setUserAgentString(settings.getUserAgentString() + " VestalandBazaar/1.2");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -75,7 +79,6 @@ public class MainActivity extends Activity {
 
                 if (isVestaland(host)) return false;
 
-                // Product pages from both source shops stay inside Vestaland's WebView.
                 if (isMarketStore(host)) {
                     if (path.contains("order-received")) {
                         marketPaymentActive = false;
@@ -85,9 +88,8 @@ public class MainActivity extends Activity {
                     return false;
                 }
 
-                // Digital Vestaland subscription stays blocked in the Bazaar build.
-                // A physical-market checkout may use any HTTPS gateway only after
-                // Vestaland itself explicitly starts the market-payment flow.
+                // Subscription payments are digital and remain disabled in the Bazaar build.
+                // Physical Vesta/Cutella checkout can use its own HTTPS gateway in-app.
                 if (host.equals("pay.hamooncloud.ir") && !marketPaymentActive) {
                     Toast.makeText(MainActivity.this,
                             "پرداخت اشتراک نسخه بازار از طریق پرداخت درون‌برنامه‌ای بازار فعال می‌شود.",
@@ -95,9 +97,7 @@ public class MainActivity extends Activity {
                     return true;
                 }
 
-                if (marketPaymentActive && scheme.equals("https")) {
-                    return false;
-                }
+                if (marketPaymentActive && scheme.equals("https")) return false;
 
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, uri));
