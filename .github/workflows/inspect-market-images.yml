@@ -14,20 +14,11 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://vestaland.smarbiz.sbs'
-          python - <<'PY'
-          import json, urllib.request
-          base='https://vestaland.smarbiz.sbs/api/market/products?store=all&per_page=8'
-          with urllib.request.urlopen(base, timeout=30) as r:
-              data=json.load(r)
-          for p in data.get('items',[])[:8]:
-              print('PRODUCT', p.get('store'), p.get('id'), p.get('name'))
-              print('IMAGE', p.get('image'))
-              url=p.get('image')
-              if not url: continue
-              req=urllib.request.Request(url, method='HEAD', headers={'User-Agent':'Mozilla/5.0','Referer':p.get('permalink','')})
-              try:
-                  with urllib.request.urlopen(req, timeout=20) as r:
-                      print('HEAD', r.status, r.headers.get('Content-Type'), r.headers.get('Content-Length'), r.geturl())
-              except Exception as e:
-                  print('HEAD_ERROR', repr(e))
-          PY
+          JSON="$(curl -fsS --max-time 30 -A 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Safari/537.36' "$BASE/api/market/products?store=all&per_page=8")"
+          echo "$JSON" | jq -r '.items[:8][] | [.store, (.id|tostring), .name, .image, .permalink] | @tsv' > /tmp/products.tsv
+          while IFS=$'\t' read -r store id name image permalink; do
+            echo "PRODUCT $store $id $name"
+            echo "IMAGE $image"
+            [ -z "$image" ] && continue
+            curl -sSIL --max-time 20 -A 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Safari/537.36' -e "$permalink" "$image" | grep -Ei 'HTTP/|content-type:|content-length:|location:' | tail -n 8 || true
+          done < /tmp/products.tsv
