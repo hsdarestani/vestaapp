@@ -28,23 +28,13 @@
   function upgradeProducts(){document.querySelectorAll('.product-card').forEach(card=>{const box=card.querySelector('.product-image');const title=card.querySelector('h3')?.textContent?.trim();if(!box||box.dataset.native==='1')return;box.dataset.native='1';box.innerHTML=svg(productIcons[title]||'shopping-bag');});}
   function upgradeMedia(){document.querySelectorAll('.photo-placeholder').forEach(box=>{if(box.dataset.native==='1')return;box.dataset.native='1';const label=box.textContent.trim();box.innerHTML=`<div class="media-placeholder-inner">${svg('image')}<span>${label}</span></div>`;});}
   function loadMarketAssets(){
-    if(!document.querySelector('link[data-vestaland-market]')){const l=document.createElement('link');l.rel='stylesheet';l.href='/assets/market-live.css?v=20260901-1';l.dataset.vestalandMarket='1';document.head.appendChild(l);}
-    if(!document.querySelector('script[data-vestaland-market]')){const s=document.createElement('script');s.src='/assets/market-live.js?v=20260901-1';s.defer=true;s.dataset.vestalandMarket='1';document.body.appendChild(s);}
+    if(!document.querySelector('link[data-vestaland-market]')){const l=document.createElement('link');l.rel='stylesheet';l.href='/assets/market-live.css?v=20260901-2';l.dataset.vestalandMarket='1';document.head.appendChild(l);}
+    if(!document.querySelector('script[data-vestaland-market]')){const s=document.createElement('script');s.src='/assets/market-live-v2.js?v=20260901-2';s.dataset.vestalandMarket='1';document.body.appendChild(s);}
   }
-  // market-live.js needs only the selected store; app.js keeps its own private state.
   window.state=window.state||{marketStore:'all'};
   document.addEventListener('click',e=>{const b=e.target.closest('.store-switch [data-store]');if(b)window.state.marketStore=b.dataset.store;});
-  async function startPayment(plan,button){
-    const token=localStorage.getItem('vestaland:token')||'';if(!token){window.showAuthModal?.('login');return;}
-    const old=button.innerHTML;button.disabled=true;button.innerHTML='<span><b>در حال انتقال به درگاه…</b></span>';
-    try{const res=await fetch('/api/payments/start',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({plan})});const data=await res.json();if(!res.ok)throw new Error(data.error||'شروع پرداخت انجام نشد.');location.href=data.url;}catch(err){button.disabled=false;button.innerHTML=old;window.toast?.(err.message);}
-  }
-  async function confirmPayment(){
-    const p=new URLSearchParams(location.search),status=p.get('payment');if(!status)return;const receipt=p.get('receipt')||'',intent=p.get('intent')||'';
-    if(status!=='success'){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.('پرداخت انجام نشد. مبلغی از حسابت کم نشده.'),350);return;}
-    const token=localStorage.getItem('vestaland:token')||'';if(!token||!receipt||!intent){history.replaceState({},'',location.pathname);return;}
-    try{const res=await fetch('/api/payments/confirm',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({receipt,intent})});const data=await res.json();if(!res.ok)throw new Error(data.error||'تأیید پرداخت انجام نشد.');localStorage.setItem('vestaland:plan',data.user.plan);location.replace('/?payment_done=1');}catch(err){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.(err.message),350);}
-  }
+  async function startPayment(plan,button){const token=localStorage.getItem('vestaland:token')||'';if(!token){window.showAuthModal?.('login');return;}const old=button.innerHTML;button.disabled=true;button.innerHTML='<span><b>در حال انتقال به درگاه…</b></span>';try{const res=await fetch('/api/payments/start',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({plan})});const data=await res.json();if(!res.ok)throw new Error(data.error||'شروع پرداخت انجام نشد.');location.href=data.url;}catch(err){button.disabled=false;button.innerHTML=old;window.toast?.(err.message);}}
+  async function confirmPayment(){const p=new URLSearchParams(location.search),status=p.get('payment');if(!status)return;const receipt=p.get('receipt')||'',intent=p.get('intent')||'';if(status!=='success'){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.('پرداخت انجام نشد. مبلغی از حسابت کم نشده.'),350);return;}const token=localStorage.getItem('vestaland:token')||'';if(!token||!receipt||!intent){history.replaceState({},'',location.pathname);return;}try{const res=await fetch('/api/payments/confirm',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({receipt,intent})});const data=await res.json();if(!res.ok)throw new Error(data.error||'تأیید پرداخت انجام نشد.');localStorage.setItem('vestaland:plan',data.user.plan);location.replace('/?payment_done=1');}catch(err){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.(err.message),350);}}
   function paymentDoneToast(){const p=new URLSearchParams(location.search);if(p.get('payment_done')==='1'){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.('پرداخت موفق بود؛ اشتراکت فعال شد ✓'),450);}}
   document.addEventListener('click',e=>{const pay=e.target.closest('[data-pay-plan]');if(pay){e.preventDefault();startPayment(pay.dataset.payPlan,pay);}});
   const observer=new MutationObserver(()=>{upgradeProducts();upgradeMedia();renderIcons();});
