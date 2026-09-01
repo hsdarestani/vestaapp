@@ -1,0 +1,33 @@
+name: Inspect market images
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-market-images.yml'
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect image URLs and responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://vestaland.smarbiz.sbs'
+          python - <<'PY'
+          import json, urllib.request
+          base='https://vestaland.smarbiz.sbs/api/market/products?store=all&per_page=8'
+          with urllib.request.urlopen(base, timeout=30) as r:
+              data=json.load(r)
+          for p in data.get('items',[])[:8]:
+              print('PRODUCT', p.get('store'), p.get('id'), p.get('name'))
+              print('IMAGE', p.get('image'))
+              url=p.get('image')
+              if not url: continue
+              req=urllib.request.Request(url, method='HEAD', headers={'User-Agent':'Mozilla/5.0','Referer':p.get('permalink','')})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      print('HEAD', r.status, r.headers.get('Content-Type'), r.headers.get('Content-Length'), r.geturl())
+              except Exception as e:
+                  print('HEAD_ERROR', repr(e))
+          PY
