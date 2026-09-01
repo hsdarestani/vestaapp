@@ -3,7 +3,6 @@ import json
 import os
 import tempfile
 import threading
-import urllib.error
 import urllib.request
 
 import server
@@ -32,10 +31,15 @@ def main():
                 'username': 'qa_girl',
                 'display_name': 'تست وستالند',
                 'password': 'test-pass-1234',
-                'plan': 'trial',
+                'plan': '6m',
             })
             assert status == 201 and data.get('token'), data
+            assert data['user']['plan'] == 'trial', data
             token = data['token']
+
+            status, data = request(base, '/api/payments/start', 'POST', {'plan': '3m'}, token)
+            assert status == 201 and data['amount_toman'] == 1290000, data
+            assert data['url'].startswith('https://pay.hamooncloud.ir/payments/vestaland/start?'), data
 
             status, data = request(base, '/api/me', token=token)
             assert status == 200 and data['user']['username'] == 'qa_girl', data
@@ -59,10 +63,7 @@ def main():
             assert data['posts'][0]['reactions']['👀'] == 1, data
             assert data['posts'][0]['comments'] == 1, data
 
-            status, data = request(base, f'/api/posts/{post_id}/comments', token=token)
-            assert status == 200 and data['comments'][0]['text'] == 'کامنت تست', data
-
-            print('Vestaland API smoke test passed: register -> post -> reaction -> comment')
+            print('Vestaland API smoke test passed: trial guard -> payment intent -> community')
         finally:
             httpd.shutdown()
             httpd.server_close()

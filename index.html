@@ -3,36 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#742036" />
+  <meta name="theme-color" content="#ffffff" />
   <meta name="description" content="وستالند؛ دورهمی دخترونه برای حرف زدن، مشورت، حال خوب و خرید." />
   <title>وستالند</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/assets/modern.css" />
 </head>
 <body>
   <div id="app" class="app-shell">
     <section id="onboarding" class="screen onboarding-screen" aria-live="polite">
-      <header class="simple-header">
-        <div class="brand-mark">V</div>
-        <span class="eyebrow">VESTALAND</span>
+      <header class="brand-header">
+        <div class="wordmark">وستالند</div>
+        <span class="brand-dot"></span>
       </header>
 
       <div id="quizIntro" class="onboarding-card intro-card">
-        <div class="hero-visual"><img src="/assets/illustrations/onboarding.svg" alt="" /></div>
-        <p class="eyebrow accent">ورودی دورهمی</p>
-        <h1>اول یه تست دخترونه 😌</h1>
-        <p class="lead">۴ تا سؤال کاملاً علمی و صددرصد قابل اعتماد :)) فقط برای فان و اینکه با حال‌وهوای دورهمی آشنا شی.</p>
-        <div class="rules-mini fancy-rules">
-          <span><i data-lucide="badge-check"></i> فضای خصوصی و امن</span>
-          <span><i data-lucide="heart-handshake"></i> برای حرف واقعی</span>
-          <span><i data-lucide="sparkles"></i> تست ورودی فقط فان</span>
+        <div class="people-stack" aria-hidden="true">
+          <span>ن</span><span>س</span><span>م</span><span>+</span>
         </div>
-        <button class="primary-btn" data-action="start-quiz">بزن بریم</button>
-        <p class="microcopy">این تست احراز هویت یا تعیین جنسیت واقعی نیست؛ یه بخش سرگرمیه.</p>
+        <p class="kicker">قبل از ورود</p>
+        <h1>یه تست کوچیک داریم 😄</h1>
+        <p class="lead">۴ تا سؤال کوتاهه. جواب درست و غلط هم نداره؛ فقط ببینیم با حال‌وهوای جمع جور درمیای یا نه.</p>
+        <button class="primary-btn" data-action="start-quiz">شروع کنیم</button>
+        <p class="microcopy">این بخش فقط برای سرگرمیه.</p>
       </div>
 
       <div id="quizCard" class="onboarding-card quiz-card hidden">
@@ -40,143 +36,192 @@
           <span id="quizCounter">سؤال ۱ از ۴</span>
           <div class="progress"><span id="quizProgress"></span></div>
         </div>
-        <div class="question-visual"><span id="questionVisual">☕</span></div>
-        <p class="eyebrow accent">اعتبارسنجی دخترونه</p>
+        <div class="question-visual" id="questionVisual">💬</div>
         <h2 id="quizQuestion"></h2>
         <div id="quizOptions" class="option-list"></div>
       </div>
 
       <div id="quizResult" class="onboarding-card result-card hidden">
-        <div class="result-seal"><i data-lucide="shield-check"></i></div>
-        <p class="eyebrow accent">نتیجه اومد</p>
-        <h2>اوکی، راهت می‌دیم تو 😌</h2>
+        <div class="result-seal">✓</div>
+        <h2>خب، قبولی 😌</h2>
         <p id="resultCopy" class="lead"></p>
-        <div class="rules-mini">
-          <span>درددل = بدون قضاوت</span>
-          <span>غیبت = بحث آزاده</span>
-          <span>پز = فقط حمایت</span>
+        <div class="rules-list">
+          <div><b>درددل</b><span>اینجا فقط هوای همو داریم.</span></div>
+          <div><b>غیبت</b><span>حرف بزن، نظر بده، بحث کن.</span></div>
+          <div><b>پز</b><span>خبر خوب داری؟ بذار بقیه هم خوشحال شن.</span></div>
         </div>
-        <button class="primary-btn" data-action="show-plans">انتخاب اشتراک</button>
+        <button class="primary-btn" data-action="show-plans">بیا تو</button>
       </div>
 
-      <div id="planCard" class="onboarding-card plans-card hidden">
-        <p class="eyebrow accent">عضویت</p>
-        <h2>۷ روز مهمون مایی</h2>
-        <p class="lead">بعدش هر پلنی که دوست داشتی ادامه بده. قبل از پایان دوره آزمایشی هم می‌تونی لغو کنی.</p>
-        <div class="plan-list">
-          <label class="plan-row selected"><input type="radio" name="plan" value="trial" checked /><span><b>۷ روز آزمایشی رایگان</b><small>بدون پرداخت امروز</small></span><strong>رایگان</strong></label>
-          <label class="plan-row"><input type="radio" name="plan" value="1m" /><span><b>۱ ماهه</b><small>پرداخت ماهانه</small></span><strong>۳۴۹٬۰۰۰ تومان</strong></label>
-          <label class="plan-row"><input type="radio" name="plan" value="3m" /><span><b>۳ ماهه</b><small>به‌صرفه‌تر برای ادامه</small></span><strong>۸۹۹٬۰۰۰ تومان</strong></label>
-          <label class="plan-row"><input type="radio" name="plan" value="6m" /><span><b>۶ ماهه</b><small>بهترین قیمت</small></span><strong>۱٬۵۹۰٬۰۰۰ تومان</strong></label>
-        </div>
+      <div id="planCard" class="onboarding-card trial-card hidden">
+        <div class="trial-badge">۷ روز رایگان</div>
+        <h2>اول امتحانش کن</h2>
+        <p class="lead">هفت روز کامل استفاده کن. بعداً از بخش «حساب من» هر وقت خواستی اشتراک بگیر.</p>
+        <ul class="clean-list">
+          <li>دسترسی به دورهمی و مشورت</li>
+          <li>ثبت حال و چرخه</li>
+          <li>بازار وستا و کیوتلا</li>
+        </ul>
         <button class="primary-btn" data-action="enter-app">شروع ۷ روز رایگان</button>
-        <button class="text-btn" data-action="enter-app">فعلاً بعداً انتخاب می‌کنم</button>
       </div>
     </section>
 
     <main id="mainApp" class="main-app hidden">
       <header class="app-header">
-        <div><p class="eyebrow">وستالند</p><h1 id="sectionTitle">سلام دختر</h1><p id="sectionSubtitle" class="muted">خوش اومدی به دنیای خودمون</p></div>
-        <button class="avatar-btn" data-action="open-profile" aria-label="پروفایل"><span>و</span></button>
+        <div>
+          <div class="mini-brand">وستالند</div>
+          <h1 id="sectionTitle">سلام 👋</h1>
+          <p id="sectionSubtitle" class="muted">امروز چه خبر؟</p>
+        </div>
+        <button class="avatar-btn" data-action="open-profile" aria-label="حساب من"><span>و</span></button>
       </header>
 
       <section id="hangoutView" class="view active-view">
-        <article class="view-banner">
-          <div class="banner-copy">
-            <p class="eyebrow accent">دورهمی</p>
-            <h2>هم درددل، هم غیبت، هم مشورت</h2>
-            <p class="lead">یه فضای زنده برای حرف‌های واقعی، نظر گرفتن و حال خوب؛ مینیمال و بدون شلوغ‌کاری.</p>
-            <div class="quick-pills"><span><i data-lucide="messages-square"></i> پست زنده</span><span><i data-lucide="sparkles"></i> واکنش اختصاصی</span></div>
-          </div>
-          <div class="banner-art"><img src="/assets/illustrations/hangout.svg" alt="" /></div>
-        </article>
+        <div class="home-shortcuts" aria-label="بخش‌های دورهمی">
+          <button class="shortcut active" data-feed="vent"><span class="shortcut-icon"><i data-lucide="heart"></i></span><b>درددل</b></button>
+          <button class="shortcut" data-feed="gossip"><span class="shortcut-icon"><i data-lucide="messages-square"></i></span><b>غیبت</b></button>
+          <button class="shortcut" data-feed="advice"><span class="shortcut-icon"><i data-lucide="message-circle-question"></i></span><b>مشورت</b></button>
+          <button class="shortcut" data-feed="challenge"><span class="shortcut-icon"><i data-lucide="sparkles"></i></span><b>چالش</b></button>
+          <button class="shortcut" data-feed="flex"><span class="shortcut-icon"><i data-lucide="crown"></i></span><b>پز</b></button>
+        </div>
 
-        <nav class="segment-tabs" aria-label="بخش‌های دورهمی">
-          <button class="segment active" data-feed="vent"><i data-lucide="heart"></i>درددل</button>
-          <button class="segment" data-feed="gossip"><i data-lucide="messages-square"></i>غیبت</button>
-          <button class="segment" data-feed="advice"><i data-lucide="message-circle-question"></i>مشورت</button>
-          <button class="segment" data-feed="challenge"><i data-lucide="sparkle"></i>چالش روزانه</button>
-          <button class="segment" data-feed="flex"><i data-lucide="crown"></i>پز</button>
+        <button class="daily-card" data-feed="challenge">
+          <div>
+            <span class="daily-label">سؤال امروز</span>
+            <strong>اگه می‌تونستی یه جمله به خودِ دو سال پیشت بگی، چی می‌گفتی؟</strong>
+            <small>جواب بقیه رو هم ببین</small>
+          </div>
+          <i data-lucide="chevron-left"></i>
+        </button>
+
+        <nav class="segment-tabs" aria-label="فیلتر دورهمی">
+          <button class="segment active" data-feed="vent">درددل</button>
+          <button class="segment" data-feed="gossip">غیبت</button>
+          <button class="segment" data-feed="advice">مشورت</button>
+          <button class="segment" data-feed="challenge">چالش روزانه</button>
+          <button class="segment" data-feed="flex">پز</button>
         </nav>
 
         <article id="dailyChallenge" class="challenge-card hidden">
-          <div><p class="eyebrow accent">چالش امروز</p><h2>اگه می‌تونستی یه پیام به خودت در ۱۸ سالگی بدی، چی می‌گفتی؟</h2><p class="muted"><span id="challengeCount">۲۶۷</span> جواب</p></div>
-          <button class="primary-btn compact" data-action="answer-challenge">جوابمو می‌نویسم</button>
+          <div><p class="kicker">چالش امروز</p><h2>جوابت رو بنویس 👇</h2></div>
+          <button class="secondary-btn" data-action="answer-challenge">نوشتن جواب</button>
         </article>
 
         <article class="composer-card">
-          <div class="composer-copy"><p id="composerLabel" class="eyebrow accent">درددل</p><h2 id="composerTitle">هرچی تو دلت هست بنویس…</h2></div>
+          <div class="composer-copy">
+            <p id="composerLabel" class="kicker">درددل</p>
+            <h2 id="composerTitle">هرچی تو دلت هست بنویس…</h2>
+          </div>
           <textarea id="postText" rows="3" placeholder="اینجا بنویس…"></textarea>
           <div class="composer-actions">
             <label id="anonymousWrap" class="switch-row"><input id="anonymousToggle" type="checkbox" /><span class="switch"></span><span>ناشناس باشه</span></label>
-            <div class="composer-buttons"><button class="ghost-btn" id="photoButton" type="button"><i data-lucide="image-plus"></i> عکس</button><button class="primary-btn compact" data-action="publish-post">ارسال</button></div>
+            <div class="composer-buttons">
+              <button class="text-icon-btn" id="photoButton" type="button"><i data-lucide="image-plus"></i><span>عکس</span></button>
+              <button class="primary-btn compact" data-action="publish-post">انتشار</button>
+            </div>
           </div>
         </article>
+
         <div id="feed" class="feed"></div>
       </section>
 
       <section id="selfView" class="view">
-        <article class="view-banner">
-          <div class="banner-copy"><p class="eyebrow accent">خودم</p><h2>حال من، گیاه من، چرخه من</h2><p class="lead">ثبت حال روزانه و چرخه، با یه فضای آروم که حس اپ سلامت خشک نده.</p></div>
-          <div class="banner-art"><img src="/assets/illustrations/selfcare.svg" alt="" /></div>
-        </article>
-        <div class="section-heading"><div><p class="eyebrow accent">خودم</p><h2>حال من</h2></div><span class="outline-icon"><i data-lucide="flower-2"></i></span></div>
+        <div class="page-title"><div><p class="kicker">خودم</p><h2>حالم چطوره؟</h2></div></div>
+
         <article class="mood-card">
-          <div class="plant-wrap"><div id="plant" class="plant mood-3"><span class="leaf l1"></span><span class="leaf l2"></span><span class="leaf l3"></span><span class="leaf l4"></span><span class="stem"></span><span class="pot"></span></div></div>
-          <div class="mood-content"><h3>امروز حالت چطوره؟</h3><p class="muted">یه گزینه بزن؛ فقط برای خودته.</p><div class="mood-options" id="moodOptions"><button data-mood="1">🥲<span>داغونم</span></button><button data-mood="2">😕<span>یکم خرابم</span></button><button data-mood="3" class="selected">😐<span>معمولی</span></button><button data-mood="4">🙂<span>خوبم</span></button><button data-mood="5">😍<span>عالی‌ام</span></button></div><p id="moodTip" class="soft-note">امروز لازم نیست فوق‌العاده باشی؛ یه کار کوچیک برای خودت کافیه.</p></div>
+          <div class="mood-head">
+            <div><h3>امروز حالت چطوره؟</h3><p class="muted">یه گزینه بزن. فقط برای خودته.</p></div>
+            <div class="plant-wrap"><div id="plant" class="plant mood-3"><span class="leaf l1"></span><span class="leaf l2"></span><span class="leaf l3"></span><span class="leaf l4"></span><span class="stem"></span><span class="pot"></span></div></div>
+          </div>
+          <div class="mood-options" id="moodOptions">
+            <button data-mood="1">🥲<span>داغونم</span></button>
+            <button data-mood="2">😕<span>یکم خرابم</span></button>
+            <button data-mood="3" class="selected">😐<span>معمولی</span></button>
+            <button data-mood="4">🙂<span>خوبم</span></button>
+            <button data-mood="5">😍<span>عالی‌ام</span></button>
+          </div>
+          <p id="moodTip" class="soft-note">امروز لازم نیست فوق‌العاده باشی؛ یه کار کوچیک برای خودت کافیه.</p>
         </article>
+
         <article class="period-card">
-          <div class="section-heading compact-heading"><div><p class="eyebrow accent">چرخه پریودی</p><h2>تقویم من</h2></div><button class="ghost-btn" data-action="edit-cycle">تنظیم چرخه</button></div>
-          <div class="period-summary"><div><small>پریود بعدی</small><strong id="nextPeriod">۵ روز دیگه</strong></div><div><small>طول چرخه</small><strong id="cycleLength">۲۸ روز</strong></div><div><small>حال امروز</small><strong id="savedMood">معمولی</strong></div></div>
-          <div id="calendar" class="calendar"></div><div class="legend"><span><i class="dot period"></i>پریود</span><span><i class="dot fertile"></i>بازه باروری</span><span><i class="dot today"></i>امروز</span></div>
+          <div class="card-heading"><div><h3>چرخه من</h3><p class="muted">خلاصه این ماه</p></div><button class="link-btn" data-action="edit-cycle">ویرایش</button></div>
+          <div class="period-summary">
+            <div><small>پریود بعدی</small><strong id="nextPeriod">۵ روز دیگه</strong></div>
+            <div><small>طول چرخه</small><strong id="cycleLength">۲۸ روز</strong></div>
+            <div><small>حال امروز</small><strong id="savedMood">معمولی</strong></div>
+          </div>
+          <div id="calendar" class="calendar"></div>
+          <div class="legend"><span><i class="dot period"></i>پریود</span><span><i class="dot fertile"></i>بازه باروری</span><span><i class="dot today"></i>امروز</span></div>
         </article>
       </section>
 
       <section id="marketView" class="view">
-        <article class="view-banner">
-          <div class="banner-copy"><p class="eyebrow accent">بازار</p><h2>وستا و کیوتلا، مرتب‌تر و خوش‌استایل‌تر</h2><p class="lead">دسته‌بندی‌ها همون دسته‌بندی‌های ثابت می‌مونن، فقط نمایش محصول و ویژوال‌ها حرفه‌ای‌تر شدن.</p></div>
-          <div class="banner-art"><img src="/assets/illustrations/market.svg" alt="" /></div>
-        </article>
-        <div class="section-heading"><div><p class="eyebrow accent">بازار</p><h2>چی لازم داری؟</h2></div><span class="outline-icon"><i data-lucide="search"></i></span></div>
-        <div class="search-box"><input id="marketSearch" type="search" placeholder="جستجو بین محصولات…" /><i data-lucide="search"></i></div>
+        <div class="page-title"><div><p class="kicker">بازار</p><h2>چی می‌خوای بخری؟</h2></div></div>
+        <label class="search-box"><i data-lucide="search"></i><input id="marketSearch" type="search" placeholder="جستجوی محصول" /></label>
         <div id="marketCategories" class="market-categories">
-          <button class="category active" data-category="all"><i data-lucide="layout-grid"></i>همه</button>
-          <button class="category" data-category="skin"><i data-lucide="droplets"></i>مراقبت پوست</button>
-          <button class="category" data-category="makeup"><i data-lucide="sparkles"></i>آرایش</button>
-          <button class="category" data-category="hair"><i data-lucide="wind"></i>مو</button>
-          <button class="category" data-category="body"><i data-lucide="flower-2"></i>بدن</button>
-          <button class="category" data-category="nail"><i data-lucide="hand"></i>ناخن</button>
-          <button class="category" data-category="accessory"><i data-lucide="gem"></i>اکسسوری</button>
+          <button class="category active" data-category="all">همه</button>
+          <button class="category" data-category="skin">پوست</button>
+          <button class="category" data-category="makeup">آرایش</button>
+          <button class="category" data-category="hair">مو</button>
+          <button class="category" data-category="body">بدن</button>
+          <button class="category" data-category="nail">ناخن</button>
+          <button class="category" data-category="accessory">اکسسوری</button>
         </div>
         <div class="store-switch"><button class="active" data-store="all">همه</button><button data-store="cutella">کیوتلا</button><button data-store="vesta">وستا</button></div>
         <div id="productGrid" class="product-grid"></div>
       </section>
 
       <section id="profileView" class="view">
-        <div class="profile-card"><div class="profile-avatar">و</div><div><p class="eyebrow accent">پروفایل من</p><h2>دختر وستالند</h2><p class="muted">عضو جدید دورهمی</p></div></div>
+        <div class="profile-card">
+          <div class="profile-avatar">و</div>
+          <div><h2>دختر وستالند</h2><p class="muted">عضو دورهمی</p></div>
+        </div>
+
+        <section class="membership-box">
+          <div class="membership-head">
+            <div><p class="kicker">اشتراک من</p><h3 id="subscriptionStatus">۷ روز آزمایشی</h3></div>
+            <i data-lucide="badge-check"></i>
+          </div>
+          <p class="muted">برای ادامه بعد از دوره آزمایشی، یکی از پلن‌ها رو انتخاب کن.</p>
+          <div class="pay-plans">
+            <button data-pay-plan="1m"><span><b>۱ ماهه</b><small>۴۹۰٬۰۰۰ تومان</small></span><i data-lucide="chevron-left"></i></button>
+            <button class="recommended" data-pay-plan="3m"><span><b>۳ ماهه</b><small>۱٬۲۹۰٬۰۰۰ تومان</small></span><em>پیشنهادی</em><i data-lucide="chevron-left"></i></button>
+            <button data-pay-plan="6m"><span><b>۶ ماهه</b><small>۲٬۱۹۰٬۰۰۰ تومان</small></span><i data-lucide="chevron-left"></i></button>
+          </div>
+          <p class="payment-note"><i data-lucide="shield-check"></i> پرداخت امن از طریق زیبال / هامون‌کلود</p>
+        </section>
+
         <div class="profile-menu">
-          <button data-action="show-subscription"><span>اشتراک و VIP</span><b id="subscriptionStatus">۷ روز آزمایشی</b></button>
           <button><span>پست‌های من</span><b id="myPostCount">۰</b></button>
           <button><span>ذخیره‌شده‌ها</span><b>۰</b></button>
-          <button><span>حریم خصوصی و امنیت</span><i class="nav-icon" data-lucide="chevron-left"></i></button>
-          <button><span>قوانین دورهمی</span><i class="nav-icon" data-lucide="chevron-left"></i></button>
+          <button><span>اعلان‌ها</span><i data-lucide="chevron-left"></i></button>
+          <button><span>حریم خصوصی و امنیت</span><i data-lucide="chevron-left"></i></button>
+          <button><span>قوانین دورهمی</span><i data-lucide="chevron-left"></i></button>
         </div>
-        <button class="danger-link" data-action="reset-demo">شروع دوباره دمو</button>
+        <button class="danger-link" data-action="logout">خروج از حساب</button>
       </section>
 
       <nav class="bottom-nav" aria-label="ناوبری اصلی">
-        <button class="active" data-view="hangout"><i data-lucide="house"></i><b>دورهمی</b></button>
-        <button data-view="self"><i data-lucide="flower-2"></i><b>خودم</b></button>
+        <button class="active" data-view="hangout"><i data-lucide="home"></i><b>دورهمی</b></button>
+        <button data-view="self"><i data-lucide="heart-pulse"></i><b>خودم</b></button>
         <button data-view="market"><i data-lucide="shopping-bag"></i><b>بازار</b></button>
-        <button data-view="profile"><i data-lucide="user-round"></i><b>پروفایل</b></button>
+        <button data-view="profile"><i data-lucide="user-round"></i><b>حساب من</b></button>
       </nav>
     </main>
 
-    <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-backdrop" data-action="close-modal"></div><div class="modal-sheet"><div class="modal-handle"></div><button class="modal-close" data-action="close-modal">×</button><div id="modalContent"></div></div></div>
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <button class="modal-close" data-action="close-modal" aria-label="بستن">×</button>
+        <div id="modalContent"></div>
+      </div>
+    </div>
+
     <div id="toast" class="toast hidden"></div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
   <script src="/app.js" defer></script>
-  <script src="/assets/modern.js" defer></script>
+  <script src="/assets/native.js" defer></script>
 </body>
 </html>
