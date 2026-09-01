@@ -34,6 +34,9 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      - name: Compile Android app
+        run: gradle -p android :app:assembleDebug --stacktrace
+
       - name: Check signing secrets
         env:
           KEYSTORE_B64: ${{ secrets.BAZAAR_KEYSTORE_BASE64 }}
