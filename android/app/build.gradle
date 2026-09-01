@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ir.vestaland.app'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'ir.vestaland.app'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    def ksPath = System.getenv('BAZAAR_KEYSTORE_PATH')
+    if (ksPath) {
+        signingConfigs {
+            release {
+                storeFile file(ksPath)
+                storePassword System.getenv('BAZAAR_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('BAZAAR_KEY_ALIAS')
+                keyPassword System.getenv('BAZAAR_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (ksPath) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
