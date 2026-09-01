@@ -16,12 +16,13 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://vestaland.smarbiz.sbs'
-          JSON="$(curl -fsS --retry 3 --retry-delay 2 --max-time 45 "$BASE/api/market/products?store=all&per_page=30")"
+          curl -fsS --retry 3 --retry-delay 2 --max-time 45 "$BASE/api/market/products?store=all&per_page=30" -o /tmp/market.json
           curl -fsS --max-time 30 "$BASE/api/market/categories?store=vesta" >/dev/null || true
           curl -fsS --max-time 30 "$BASE/api/market/categories?store=cutella" >/dev/null || true
-          JSON="$JSON" python3 - <<'PY' > /tmp/market-images.txt
-          import json, os
-          d=json.loads(os.environ['JSON'])
+          python3 - <<'PY' > /tmp/market-images.txt
+          import json
+          with open('/tmp/market.json', encoding='utf-8') as f:
+              d=json.load(f)
           seen=[]
           for p in d.get('items',[]):
               u=p.get('image') or ''
@@ -33,5 +34,5 @@ jobs:
               print(u)
           PY
           sed -i "s#^/#$BASE/#" /tmp/market-images.txt
-          cat /tmp/market-images.txt | xargs -r -n1 -P5 -I{} curl -fsS --max-time 30 '{}' -o /dev/null || true
+          xargs -r -P5 -I{} curl -fsS --max-time 30 '{}' -o /dev/null < /tmp/market-images.txt || true
           echo "Warm-up complete: $(wc -l < /tmp/market-images.txt) product images primed."
