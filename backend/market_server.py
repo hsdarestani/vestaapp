@@ -68,7 +68,6 @@ def money(prices):
             return None
         if minor:
             n = n / (10 ** minor)
-        # Iranian WooCommerce commonly stores IRR while storefront displays toman.
         if code == 'IRR':
             n = n / 10
         return int(round(n))
@@ -93,6 +92,7 @@ def product_payload(store, p):
         'name': p.get('name') or '',
         'slug': p.get('slug') or '',
         'type': p.get('type') or '',
+        'variation': p.get('variation') or '',
         'permalink': p.get('permalink') or '',
         'sku': p.get('sku') or '',
         'summary': p.get('short_description') or '',
@@ -113,9 +113,9 @@ def product_payload(store, p):
 
 def fetch_products(store, params):
     page = max(1, min(1000, int(params.get('page') or 1)))
-    per_page = max(1, min(40, int(params.get('per_page') or 20)))
+    per_page = max(1, min(100, int(params.get('per_page') or 20)))
     q = {'page': page, 'per_page': per_page, 'orderby': 'date', 'order': 'desc'}
-    for key in ('search', 'category', 'include', 'exclude'):
+    for key in ('search', 'category', 'include', 'exclude', 'type', 'parent'):
         if params.get(key): q[key] = params[key]
     data, headers, _ = request_json(store_url(store, 'products', q))
     if not isinstance(data, list):
@@ -144,7 +144,6 @@ def fetch_product(store, product_id):
 
 
 def create_cart(store, items):
-    # WooCommerce Store API Cart-Token keeps this headless cart isolated from other users.
     cart, headers, _ = request_json(store_url(store, 'cart'))
     token = headers.get('Cart-Token') or headers.get('cart-token')
     if not token:
@@ -234,7 +233,7 @@ def checkout(store, body):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'VestalandMarket/1.0'
+    server_version = 'VestalandMarket/1.1'
     def log_message(self, fmt, *args):
         print('%s - %s' % (self.address_string(), fmt % args), flush=True)
     def send_json(self, status, payload):
@@ -258,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
         qs = {k: v[0] for k,v in qs0.items() if v}
         try:
             if path == '/api/market/health':
-                return self.send_json(200, {'ok': True, 'service': 'vestaland-market', 'stores': list(STORES)})
+                return self.send_json(200, {'ok': True, 'service': 'vestaland-market', 'version': 2, 'stores': list(STORES)})
             if path == '/api/market/products':
                 store = qs.get('store','all')
                 if store == 'all':
