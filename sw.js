@@ -1,4 +1,4 @@
-const CACHE='vestaland-v15';
+const CACHE='vestaland-v16';
 const MARKET_CACHE='vestaland-market-data-v4';
 const IMAGE_CACHE='vestaland-market-images-v4';
 const CORE=[
@@ -12,6 +12,7 @@ const CORE=[
   '/assets/market-live-v2.js?v=20260901-1958',
   '/assets/market-native-checkout.js?v=20260903-1',
   '/assets/market-payment.js?v=20260903-1',
+  '/assets/production-hardening.js?v=20260903-1',
   '/assets/minimal-v5.css?v=20260901-2228',
   '/manifest.webmanifest',
   '/icon.svg'
