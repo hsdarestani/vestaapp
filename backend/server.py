@@ -1,336 +1,819 @@
 #!/usr/bin/env python3
 import argparse
+import base64
 import datetime as dt
-import hashlib
-import hmac
 import json
-import os
-import secrets
+import re
 import sqlite3
 import sys
-import urllib.error
-import urllib.request
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
-POST_TYPES = {'vent', 'gossip', 'advice', 'challenge', 'flex'}
-COMMENTS_ALLOWED = {'gossip', 'advice', 'challenge'}
-REACTIONS = {
-    'vent': ['🤍', '🥺', '🫂', '💜'],
-    'gossip': ['😂', '👀', '🤔', '🔥'],
-    'advice': ['😍', '💜', '✨', '💅', '🤔'],
-    'challenge': ['💜', '🫂', '✨'],
-    'flex': ['👏', '😍', '💖', '✨'],
-}
-PLAN_PRICES = {'1m': 490_000, '3m': 1_290_000, '6m': 2_190_000}
-PLAN_DAYS = {'1m': 30, '3m': 90, '6m': 180}
-PAYMENT_BASE_URL = 'https://pay.hamooncloud.ir/payments/vestaland'
-SESSION_DAYS = 90
-TRIAL_DAYS = 7
-PBKDF2_ROUNDS = 260_000
-MAX_BODY = 256 * 1024
+import core_server as core
+
+FEATURE_MAX_BODY = 4 * 1024 * 1024
+MAX_IMAGE_BYTES = 1_200_000
+MAX_POST_IMAGES = 3
+IMAGE_RE = re.compile(r'^data:(image/(?:jpeg|jpg|png|webp));base64,(.+)$', re.I | re.S)
+
 DB_PATH = ''
-
-
-def utcnow():
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+MAX_BODY = FEATURE_MAX_BODY
+ThreadingHTTPServer = core.ThreadingHTTPServer
 
 
 def iso_now():
-    return utcnow().isoformat().replace('+00:00', 'Z')
+    return core.iso_now()
 
 
-def iso_at(value):
-    return value.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
-
-
-def parse_iso(value):
-    if not value:
-        return None
-    try:
-        return dt.datetime.fromisoformat(str(value).replace('Z', '+00:00')).astimezone(dt.timezone.utc)
-    except Exception:
-        return None
-
-
-def connect():
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys=ON')
-    return conn
-
-
-def ensure_column(conn, table, column, definition):
-    cols = {r['name'] for r in conn.execute(f'PRAGMA table_info({table})').fetchall()}
-    if column not in cols:
-        conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
-
-
-def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = connect()
-    conn.execute('PRAGMA journal_mode=WAL')
+def init_features():
+    conn = core.connect()
     conn.executescript('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-        display_name TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        password_salt TEXT NOT NULL,
-        plan TEXT NOT NULL DEFAULT 'trial',
-        trial_started_at TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-        token_hash TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS bookmarks (
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
         created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL
+        PRIMARY KEY(user_id, post_id)
     );
-    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id, created_at DESC);
 
-    CREATE TABLE IF NOT EXISTS posts (
+    CREATE TABLE IF NOT EXISTS notifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         type TEXT NOT NULL,
-        text TEXT NOT NULL,
-        anonymous INTEGER NOT NULL DEFAULT 0,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        post_id INTEGER REFERENCES posts(id) ON DELETE SET NULL,
+        is_read INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_posts_type_id ON posts(type, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC);
 
-    CREATE TABLE IF NOT EXISTS reactions (
-        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        emoji TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        PRIMARY KEY(post_id, user_id, emoji)
+    CREATE TABLE IF NOT EXISTS user_settings (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        profile_private INTEGER NOT NULL DEFAULT 0,
+        allow_comments INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS comments (
+    CREATE TABLE IF NOT EXISTS cycles (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        cycle_length INTEGER NOT NULL DEFAULT 28,
+        period_length INTEGER NOT NULL DEFAULT 5,
+        last_period_date TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS post_media (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        text TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        bytes BLOB NOT NULL,
         created_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id, id);
+    CREATE INDEX IF NOT EXISTS idx_post_media_post ON post_media(post_id, id);
 
-    CREATE TABLE IF NOT EXISTS moods (
+    CREATE TABLE IF NOT EXISTS polls (
+        post_id INTEGER PRIMARY KEY REFERENCES posts(id) ON DELETE CASCADE,
+        question TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS poll_options (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        position INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_poll_options_post ON poll_options(post_id, position);
+    CREATE TABLE IF NOT EXISTS poll_votes (
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        day TEXT NOT NULL,
-        mood INTEGER NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY(user_id, day)
+        option_id INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(post_id, user_id)
     );
 
-    CREATE TABLE IF NOT EXISTS payment_intents (
-        intent TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        plan TEXT NOT NULL,
-        amount_toman INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        receipt TEXT UNIQUE,
-      created_at TEXT NOT NULL,
-        paid_at TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_payment_intents_user ON payment_intents(user_id, created_at DESC);
-
-    CREATE TABLE IF NOT EXISTS payment_receipts (
-        receipt TEXT PRIMARY KEY,
-        intent TEXT NOT NULL UNIQUE REFERENCES payment_intents(intent) ON DELETE RESTRICT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-        plan TEXT NOT NULL,
-        amount_toman INTEGER NOT NULL,
-        confirmed_at TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS profiles (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        avatar_mime TEXT,
+        avatar_bytes BLOB,
+        updated_at TEXT NOT NULL
     );
     ''')
-    ensure_column(conn, 'users', 'plan_expires_at', 'TEXT')
-    rows = conn.execute('SELECT id, plan, trial_started_at, plan_expires_at FROM users').fetchall()
-    for row in rows:
-        if not row['plan_expires_at']:
-            started = parse_iso(row['trial_started_at']) or utcnow()
-            expiry = started + dt.timedelta(days=TRIAL_DAYS)
-            conn.execute('UPDATE users SET plan=?, plan_expires_at=? WHERE id=?', ('trial', iso_at(expiry), row['id']))
     conn.commit()
     conn.close()
 
 
-def password_hash(password, salt_hex=None):
-    salt = bytes.fromhex(salt_hex) if salt_hex else os.urandom(16)
-    digest = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, PBKDF2_ROUNDS)
-    return salt.hex(), digest.hex()
+def init_db():
+    core.DB_PATH = DB_PATH
+    core.MAX_BODY = MAX_BODY
+    core.init_db()
+    init_features()
 
 
-def verify_password(password, salt_hex, expected_hex):
-    _, actual = password_hash(password, salt_hex)
-    return hmac.compare_digest(actual, expected_hex)
-
-
-def clean_username(value):
-    value = (value or '').strip().lower()
-    if not (3 <= len(value) <= 24):
-        raise ValueError('نام کاربرٌ باید بین ۳ تا ۲۴ کارافتر باشد.')
-    allowed = set('abcdefghijklmnopqrstuvwxyz0123456789_.-')
-    if any(ch not in allowed for ch in value):
-        raise ValueError('نام کاربرٌ فقط می‌تواند شامؤ خصروف انگلیسی، عدد، نقطه، خط تیره و آندرلاین باشد.')
-    return value
-
-
-def clean_display_name(value):
-    value = ' '.join((value or '').strip().split())
-    if not (2 <= len(value) <= 32):
-        raise ValueError('اسم نمایشی باید بین ۲ تا ۳۲ کاراکتر باشد.')
-    return value
-
-
-def make_session(conn, user_id):
-    raw = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(raw.encode()).hexdigest()
-    now = utcnow()
-    expires = now + dt.timedelta(days=SESSION_DAYS)
+def ensure_settings(conn, user_id):
+    row = conn.execute('SELECT * FROM user_settings WHERE user_id=?', (user_id,)).fetchone()
+    if row:
+        return row
     conn.execute(
-        'INSERT INTO sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)',
-        (token_hash, user_id, now.isoformat(), expires.isoformat()),
+        'INSERT INTO user_settings(user_id,notifications_enabled,profile_private,allow_comments,updated_at) VALUES(?,?,?,?,?)',
+        (user_id, 1, 0, 1, iso_now()),
     )
-    return raw
+    return conn.execute('SELECT * FROM user_settings WHERE user_id=?', (user_id,)).fetchone()
 
 
-def row_user(row):
-    now = utcnow()
-    expiry = parse_iso(row['plan_expires_at']) if 'plan_expires_at' in row.keys() else None
-    active = bool(expiry and expiry > now)
-    return {
-        'id': row['id'],
-        'username': row['username'],
-        'display_name': row['display_name'],
-        'plan': row['plan'],
-        'plan_expires_at': row['plan_expires_at'] if 'plan_expires_at' in row.keys() else None,
-        'subscription_active': active,
-        'trial_started_at': row['trial_started_at'],
-        'created_at': row['created_at'],
-    }
+def active_subscription(user):
+    return bool(core.row_user(user).get('subscription_active'))
 
 
-def get_user_from_auth(headers):
-    auth = headers.get('Authorization', '')
-    if not auth.startswith('Bearer '):
+def decode_image(data_url):
+    if not data_url:
         return None
-    raw = auth[7:].strip()
-    if not raw:
-        return None
-    token_hash = hashlib.sha256(raw.encode()).hexdigest()
-    conn = connect()
-    row = conn.execute('''
-        SELECT u.* FROM sessions s
-        JOIN users u ON u.id=s.user_id
-        WHERE s.token_hash=? AND s.expires_at>?
-    ''', (token_hash, utcnow().isoformat())).fetchone()
-    conn.close()
-    return row
-
-
-def post_json(conn, row, viewer_id):
-    counts = {r['emoji']: r['n'] for r in conn.execute(
-        'SELECT emoji, COUNT(*) n FROM reactions WHERE post_id=? GROUP BY emoji', (row['id'],)
-    ).fetchall()}
-    mine = [r['emoji'] for r in conn.execute(
-        'SELECT emoji FROM reactions WHERE post_id=? AND user_id=?', (row['id'], viewer_id)
-    ).fetchall()]
-    comment_count = conn.execute('SELECT COUNT(*) n FROM comments WHERE post_id=?', (row['id'],)).fetchone()['n']
-    anonymous = bool(row['anonymous'])
-    name = 'ناشناس' if anonymous else row['display_name']
-    avatar = '؟' if anonymous else (name[:1] or 'و')
-    return {
-        'id': row['id'], 'type': row['type'], 'name': name, 'avatar': avatar,
-        'text': row['text'], 'anonymous': anonymous, 'created_at': row['created_at'],
-        'reactions': counts, 'my_reactions': mine, 'comments': comment_count,
-        'comments_allowed': row['type'] in COMMENTS_ALLOWED, 'is_mine': row['user_id'] == viewer_id,
-    }
-
-
-def hamoon_payment_status(receipt):
-    url = f"{PAYMENT_BASE_URL}/status?{urlencode({'receipt': receipt})}"
-    req = urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': 'Vestaland/1.0'})
+    match = IMAGE_RE.match(str(data_url))
+    if not match:
+        raise ValueError('فرمت عکس پشتیبانی نمی‌شود.')
+    mime = match.group(1).lower().replace('image/jpg', 'image/jpeg')
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            return json.loads(response.read().decode('utf-8'))
-    except urllib.error.HTTPError as exc:
-        try:
-            payload = json.loads(exc.read().decode('utf-8'))
-            raise ValueError(payload.get('error') or 'پرداخت در هامون‌کلود پیدا نشد.')
-        except json.JSONDecodeError:
-            raise ValueError('امکان بررسی پرداخت وجود ندارد.')
-    except Exception as exc:
-        if isinstance(exc, ValueError):
-            raise
-        raise ValueError('امکان بررسی پرداخت وجود ندارد. دوباره تلاش کن.')
+        raw = base64.b64decode(match.group(2), validate=True)
+    except Exception:
+        raise ValueError('فایل عکس معتبر نیست.')
+    if not raw or len(raw) > MAX_IMAGE_BYTES:
+        raise ValueError('حجم هر عکس باید کمتر از حدود ۱ مگابایت باشد.')
+    return mime, raw
 
 
-class Handler(BaseHTTPRequestHandler):
-    server_version = 'VestalandAPI/1.1'
+def poll_payload(conn, post_id, viewer_id):
+    poll = conn.execute('SELECT question FROM polls WHERE post_id=?', (post_id,)).fetchone()
+    if not poll:
+        return None
+    mine = conn.execute('SELECT option_id FROM poll_votes WHERE post_id=? AND user_id=?', (post_id, viewer_id)).fetchone()
+    rows = conn.execute('''
+        SELECT o.id,o.label,o.position,COUNT(v.user_id) votes
+        FROM poll_options o LEFT JOIN poll_votes v ON v.option_id=o.id
+        WHERE o.post_id=? GROUP BY o.id,o.label,o.position ORDER BY o.position,o.id
+    ''', (post_id,)).fetchall()
+    total = sum(int(r['votes']) for r in rows)
+    options = []
+    for row in rows:
+        votes = int(row['votes'])
+        options.append({
+            'id': row['id'], 'label': row['label'], 'votes': votes,
+            'percent': round((votes * 100 / total), 1) if total else 0,
+            'selected': bool(mine and mine['option_id'] == row['id']),
+        })
+    return {'question': poll['question'], 'total_votes': total, 'options': options}
 
-    def log_message(self, fmt, *args):
-        sys.stdout.write('%s - %s\n' % (self.address_string(), fmt % args))
-        sys.stdout.flush()
 
-    def send_json(self, status, payload):
-        raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+def media_payload(conn, post_id):
+    return [{'id': r['id'], 'mime': r['mime']} for r in conn.execute(
+        'SELECT id,mime FROM post_media WHERE post_id=? ORDER BY id', (post_id,)
+    ).fetchall()]
+
+
+def comments_allowed_for(conn, post_row):
+    if post_row['type'] not in core.COMMENTS_ALLOWED:
+        return False
+    settings = ensure_settings(conn, post_row['user_id'])
+    return bool(settings['allow_comments'])
+
+
+def post_payload(conn, row, viewer_id):
+    payload = core.post_json(conn, row, viewer_id)
+    payload['bookmarked'] = bool(conn.execute(
+        'SELECT 1 FROM bookmarks WHERE user_id=? AND post_id=?', (viewer_id, row['id'])
+    ).fetchone())
+    payload['media_items'] = media_payload(conn, row['id'])
+    payload['poll'] = poll_payload(conn, row['id'], viewer_id)
+    payload['comments_allowed'] = comments_allowed_for(conn, row)
+    return payload
+
+
+def notify(conn, user_id, actor_user_id, kind, title, body, post_id=None):
+    if not user_id or user_id == actor_user_id:
+        return
+    settings = ensure_settings(conn, user_id)
+    if not settings['notifications_enabled']:
+        return
+    conn.execute('''
+        INSERT INTO notifications(user_id,actor_user_id,type,title,body,post_id,is_read,created_at)
+        VALUES(?,?,?,?,?,?,0,?)
+    ''', (user_id, actor_user_id, kind, title, body, post_id, iso_now()))
+
+
+def cycle_payload(row):
+    if not row:
+        return None
+    try:
+        last = dt.date.fromisoformat(row['last_period_date'])
+    except Exception:
+        return None
+    today = dt.datetime.now().astimezone().date()
+    cycle_len = int(row['cycle_length'])
+    period_len = int(row['period_length'])
+    next_start = last
+    while next_start <= today:
+        next_start += dt.timedelta(days=cycle_len)
+    starts = []
+    anchor = last
+    while anchor > today - dt.timedelta(days=cycle_len * 3):
+        anchor -= dt.timedelta(days=cycle_len)
+    for _ in range(8):
+        starts.append(anchor)
+        anchor += dt.timedelta(days=cycle_len)
+    ranges = []
+    for start in starts:
+        period_end = start + dt.timedelta(days=period_len - 1)
+        ovulation = start + dt.timedelta(days=max(1, cycle_len - 14))
+        fertile_start = ovulation - dt.timedelta(days=5)
+        fertile_end = ovulation + dt.timedelta(days=1)
+        ranges.append({
+            'period_start': start.isoformat(), 'period_end': period_end.isoformat(),
+            'fertile_start': fertile_start.isoformat(), 'fertile_end': fertile_end.isoformat(),
+        })
+    return {
+        'cycle_length': cycle_len,
+        'period_length': period_len,
+        'last_period_date': last.isoformat(),
+        'next_period_date': next_start.isoformat(),
+        'days_until_next': max(0, (next_start - today).days),
+        'ranges': ranges,
+        'updated_at': row['updated_at'],
+    }
+
+
+class Handler(core.Handler):
+    server_version = 'VestalandAPI/2.0'
+
+    def require_active(self):
+        user = self.require_user()
+        if not user:
+            return None
+        if not active_subscription(user):
+            self.send_json(402, {
+                'error': 'دوره عضویتت تموم شده. برای ادامه یکی از پلن‌ها رو فعال کن.',
+                'code': 'subscription_required',
+            })
+            return None
+        return user
+
+    def send_bytes(self, status, mime, raw):
         self.send_response(status)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Type', mime)
         self.send_header('Content-Length', str(len(raw)))
-        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Cache-Control', 'private, max-age=300')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.end_headers()
         self.wfile.write(raw)
 
-    def read_json(self):
-        try:
-            length = int(self.headers.get('Content-Length', '0'))
-        except ValueError:
-            raise ValueError('درخواست نامعتبر است.')
-        if length <= 0 or length > MAX_BODY:
-            raise ValueError('حجم درخواست نامعتبر است.')
-        try:
-            return json.loads(self.rfile.read(length).decode('utf-8'))
-        except Exception:
-            raise ValueError('JSON نامعتبر است.')
-
-    def require_user(self):
-        user = get_user_from_auth(self.headers)
-        if not user:
-            self.send_json(401, {'error': 'برای ادامه وارد حساب شو.'})
-        return user
-
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/') or '/'
-        if path == '/api/health':
-            return self.send_json(200, {'ok': True, 'service': 'vestaland-api', 'payments': 'hamooncloud-zibal'})
-        if path == '/api/me':
+
+        if path == '/api/v2/health':
+            return self.send_json(200, {'ok': True, 'service': 'vestaland-community-v2'})
+
+        if path.startswith('/api/media/'):
             user = self.require_user()
-            if user:
-                return self.send_json(200, {'user': row_user(user)})
-            return
+            if not user:
+                return
+            try:
+                media_id = int(path.split('/')[-1])
+            except Exception:
+                return self.send_json(404, {'error': 'عکس پیدا نشد.'})
+            conn = core.connect()
+            row = conn.execute('SELECT mime,bytes FROM post_media WHERE id=?', (media_id,)).fetchone()
+            conn.close()
+            if not row:
+                return self.send_json(404, {'error': 'عکس پیدا نشد.'})
+            return self.send_bytes(200, row['mime'], row['bytes'])
+
+        if path.startswith('/api/avatar/'):
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                user_id = int(path.split('/')[-1])
+            except Exception:
+                return self.send_json(404, {'error': 'عکس پروفایل پیدا نشد.'})
+            conn = core.connect()
+            row = conn.execute('SELECT avatar_mime,avatar_bytes FROM profiles WHERE user_id=?', (user_id,)).fetchone()
+            conn.close()
+            if not row or not row['avatar_bytes']:
+                return self.send_json(404, {'error': 'عکس پروفایل ثبت نشده.'})
+            return self.send_bytes(200, row['avatar_mime'], row['avatar_bytes'])
+
         if path == '/api/posts':
             user = self.require_user()
             if not user:
                 return
             qs = parse_qs(parsed.query)
             post_type = (qs.get('type') or ['vent'])[0]
-            if post_type not in POST_TYPES:
+            if post_type not in core.POST_TYPES:
                 return self.send_json(400, {'error': 'بخش نامعتبر است.'})
-            conn = connect()
+            conn = core.connect()
             rows = conn.execute('''
-                SELECT p.*, u.display_name FROM posts p
+                SELECT p.*,u.display_name FROM posts p
                 JOIN users u ON u.id=p.user_id
                 WHERE p.type=? ORDER BY p.id DESC LIMIT 50
             ''', (post_type,)).fetchall()
-            payload = [post_json(conn, row, user['id']) for row in rows]
+            payload = [post_payload(conn, row, user['id']) for row in rows]
+            conn.commit()
             conn.close()
             return self.send_json(200, {'posts': payload})
+
+        if path == '/api/post-extras':
+            user = self.require_user()
+            if not user:
+                return
+            qs = parse_qs(parsed.query)
+            ids = []
+            for piece in ','.join(qs.get('ids') or []).split(','):
+                try:
+                    ids.append(int(piece))
+                except Exception:
+                    pass
+            ids = list(dict.fromkeys(ids))[:50]
+            if not ids:
+                return self.send_json(200, {'extras': {}})
+            marks = ','.join('?' for _ in ids)
+            conn = core.connect()
+            rows = conn.execute(f'SELECT * FROM posts WHERE id IN ({marks})', ids).fetchall()
+            extras = {}
+            for row in rows:
+                extras[str(row['id'])] = {
+                    'media': media_payload(conn, row['id']),
+                    'poll': poll_payload(conn, row['id'], user['id']),
+                    'bookmarked': bool(conn.execute(
+                        'SELECT 1 FROM bookmarks WHERE user_id=? AND post_id=?', (user['id'], row['id'])
+                    ).fetchone()),
+                    'is_mine': row['user_id'] == user['id'],
+                    'comments_allowed': comments_allowed_for(conn, row),
+                }
+            conn.commit()
+            conn.close()
+            return self.send_json(200, {'extras': extras})
+
+        if path == '/api/my/posts':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            rows = conn.execute('''
+                SELECT p.*,u.display_name FROM posts p JOIN users u ON u.id=p.user_id
+                WHERE p.user_id=? ORDER BY p.id DESC LIMIT 100
+            ''', (user['id'],)).fetchall()
+            payload = [post_payload(conn, row, user['id']) for row in rows]
+            conn.commit()
+            conn.close()
+            return self.send_json(200, {'posts': payload})
+
+        if path == '/api/bookmarks':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            rows = conn.execute('''
+                SELECT p.*,u.display_name FROM bookmarks b
+                JOIN posts p ON p.id=b.post_id JOIN users u ON u.id=p.user_id
+                WHERE b.user_id=? ORDER BY b.created_at DESC LIMIT 100
+            ''', (user['id'],)).fetchall()
+            payload = [post_payload(conn, row, user['id']) for row in rows]
+            conn.commit()
+            conn.close()
+            return self.send_json(200, {'posts': payload})
+
+        if path == '/api/profile/stats':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            posts = conn.execute('SELECT COUNT(*) n FROM posts WHERE user_id=?', (user['id'],)).fetchone()['n']
+            saved = conn.execute('SELECT COUNT(*) n FROM bookmarks WHERE user_id=?', (user['id'],)).fetchone()['n']
+            unread = conn.execute('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND is_read=0', (user['id'],)).fetchone()['n']
+            conn.close()
+            return self.send_json(200, {'posts': posts, 'saved': saved, 'unread_notifications': unread})
+
+        if path == '/api/notifications':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            rows = conn.execute('''
+                SELECT n.*,p.type post_type FROM notifications n
+                LEFT JOIN posts p ON p.id=n.post_id
+                WHERE n.user_id=? ORDER BY n.id DESC LIMIT 60
+            ''', (user['id'],)).fetchall()
+            conn.close()
+            items = [{
+                'id': r['id'], 'type': r['type'], 'title': r['title'], 'body': r['body'],
+                'post_id': r['post_id'], 'post_type': r['post_type'], 'is_read': bool(r['is_read']),
+                'created_at': r['created_at'],
+            } for r in rows]
+            return self.send_json(200, {'notifications': items})
+
+        if path == '/api/wellbeing':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            day = core.utcnow().date().isoformat()
+            mood = conn.execute('SELECT mood,updated_at FROM moods WHERE user_id=? AND day=?', (user['id'], day)).fetchone()
+            cycle = conn.execute('SELECT * FROM cycles WHERE user_id=?', (user['id'],)).fetchone()
+            conn.close()
+            return self.send_json(200, {
+                'mood': int(mood['mood']) if mood else None,
+                'mood_updated_at': mood['updated_at'] if mood else None,
+                'cycle': cycle_payload(cycle),
+            })
+
+        if path == '/api/settings':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            row = ensure_settings(conn, user['id'])
+            conn.commit()
+            conn.close()
+            return self.send_json(200, {'settings': {
+                'notifications_enabled': bool(row['notifications_enabled']),
+                'profile_private': bool(row['profile_private']),
+                'allow_comments': bool(row['allow_comments']),
+            }})
+
+        if path == '/api/profile':
+            user = self.require_user()
+            if not user:
+                return
+            conn = core.connect()
+            avatar = conn.execute('SELECT 1 FROM profiles WHERE user_id=? AND avatar_bytes IS NOT NULL', (user['id'],)).fetchone()
+            settings = ensure_settings(conn, user['id'])
+            conn.commit()
+            conn.close()
+            payload = core.row_user(user)
+            payload['has_avatar'] = bool(avatar)
+            payload['settings'] = {
+                'notifications_enabled': bool(settings['notifications_enabled']),
+                'profile_private': bool(settings['profile_private']),
+                'allow_comments': bool(settings['allow_comments']),
+            }
+            return self.send_json(200, {'profile': payload})
+
+        return super().do_GET()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip('/') or '/'
+
+        if path in {'/api/posts', '/api/v2/posts'}:
+            user = self.require_active()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            post_type = body.get('type')
+            text = ' '.join((body.get('text') or '').strip().split())
+            media_items = body.get('media') or []
+            poll = body.get('poll') or None
+            if post_type not in core.POST_TYPES:
+                return self.send_json(400, {'error': 'بخش نامعتبر است.'})
+            if len(text) > 2500 or (not text and not media_items):
+                return self.send_json(400, {'error': 'یه متن یا عکس برای پست بذار.'})
+            if not isinstance(media_items, list) or len(media_items) > MAX_POST_IMAGES:
+                return self.send_json(400, {'error': 'برای هر پست حداکثر ۳ عکس می‌تونی بذاری.'})
+            decoded = []
+            try:
+                for item in media_items:
+                    decoded.append(decode_image(item))
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            poll_question = ''
+            poll_options = []
+            if poll:
+                poll_question = ' '.join(str(poll.get('question') or '').strip().split())[:200]
+                options = poll.get('options') or []
+                if not isinstance(options, list):
+                    options = []
+                poll_options = [' '.join(str(x).strip().split())[:80] for x in options]
+                poll_options = [x for x in poll_options if x]
+                if not (2 <= len(poll_options) <= 4) or len(set(poll_options)) != len(poll_options):
+                    return self.send_json(400, {'error': 'نظرسنجی باید ۲ تا ۴ گزینه متفاوت داشته باشه.'})
+            anonymous = bool(body.get('anonymous')) and post_type in {'vent', 'gossip'}
+            conn = core.connect()
+            try:
+                conn.execute('BEGIN IMMEDIATE')
+                cur = conn.execute(
+                    'INSERT INTO posts(user_id,type,text,anonymous,created_at) VALUES(?,?,?,?,?)',
+                    (user['id'], post_type, text, 1 if anonymous else 0, iso_now()),
+                )
+                post_id = cur.lastrowid
+                for mime, raw in decoded:
+                    conn.execute(
+                        'INSERT INTO post_media(post_id,mime,bytes,created_at) VALUES(?,?,?,?)',
+                        (post_id, mime, raw, iso_now()),
+                    )
+                if poll_options:
+                    conn.execute('INSERT INTO polls(post_id,question,created_at) VALUES(?,?,?)',
+                                 (post_id, poll_question or 'نظر تو چیه؟', iso_now()))
+                    for position, label in enumerate(poll_options):
+                        conn.execute('INSERT INTO poll_options(post_id,label,position) VALUES(?,?,?)',
+                                     (post_id, label, position))
+                conn.commit()
+                row = conn.execute('''
+                    SELECT p.*,u.display_name FROM posts p JOIN users u ON u.id=p.user_id WHERE p.id=?
+                ''', (post_id,)).fetchone()
+                payload = post_payload(conn, row, user['id'])
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                conn.close()
+                raise
+            conn.close()
+            return self.send_json(201, {'post': payload})
+
+        if path.startswith('/api/posts/') and path.endswith('/react'):
+            user = self.require_active()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+                post_id = int(path.split('/')[3])
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            except Exception:
+                return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            emoji = body.get('emoji') or ''
+            conn = core.connect()
+            post = conn.execute('SELECT p.*,u.display_name FROM posts p JOIN users u ON u.id=p.user_id WHERE p.id=?', (post_id,)).fetchone()
+            if not post:
+                conn.close()
+                return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            if emoji not in core.REACTIONS[post['type']]:
+                conn.close()
+                return self.send_json(400, {'error': 'واکنش نامعتبر است.'})
+            existing = conn.execute('SELECT 1 FROM reactions WHERE post_id=? AND user_id=? AND emoji=?',
+                                    (post_id, user['id'], emoji)).fetchone()
+            if existing:
+                conn.execute('DELETE FROM reactions WHERE post_id=? AND user_id=? AND emoji=?',
+                             (post_id, user['id'], emoji))
+                active = False
+            else:
+                conn.execute('INSERT INTO reactions(post_id,user_id,emoji,created_at) VALUES(?,?,?,?)',
+                             (post_id, user['id'], emoji, iso_now()))
+                active = True
+                actor = user['display_name']
+                notify(conn, post['user_id'], user['id'], 'reaction', 'واکنش جدید',
+                       f'{actor} به پستت واکنش {emoji} داد.', post_id)
+            conn.commit()
+            count = conn.execute('SELECT COUNT(*) n FROM reactions WHERE post_id=? AND emoji=?',
+                                 (post_id, emoji)).fetchone()['n']
+            conn.close()
+            return self.send_json(200, {'active': active, 'count': count})
+
         if path.startswith('/api/posts/') and path.endswith('/comments'):
+            user = self.require_active()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+                post_id = int(path.split('/')[3])
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            except Exception:
+                return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            text = ' '.join((body.get('text') or '').strip().split())
+            if not (1 <= len(text) <= 1000):
+                return self.send_json(400, {'error': 'کامنت باید بین ۱ تا ۱۰۰۰ کاراکتر باشد.'})
+            conn = core.connect()
+            post = conn.execute('SELECT * FROM posts WHERE id=?', (post_id,)).fetchone()
+            if not post:
+                conn.close()
+                return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            if not comments_allowed_for(conn, post):
+                conn.commit(); conn.close()
+                return self.send_json(403, {'error': 'صاحب این پست نظرها رو بسته.'})
+            cur = conn.execute('INSERT INTO comments(post_id,user_id,text,created_at) VALUES(?,?,?,?)',
+                               (post_id, user['id'], text, iso_now()))
+            count = conn.execute('SELECT COUNT(*) n FROM comments WHERE post_id=?', (post_id,)).fetchone()['n']
+            notify(conn, post['user_id'], user['id'], 'comment', 'نظر جدید',
+                   f"{user['display_name']} برای پستت نظر گذاشت: {text[:80]}", post_id)
+            conn.commit(); conn.close()
+            return self.send_json(201, {'comment': {
+                'id': cur.lastrowid, 'text': text, 'name': user['display_name'],
+                'avatar': user['display_name'][:1], 'created_at': iso_now(),
+            }, 'count': count})
+
+        if path.startswith('/api/posts/') and path.endswith('/bookmark'):
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                _ = self.read_json()
+                post_id = int(path.split('/')[3])
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            except Exception:
+                return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            conn = core.connect()
+            if not conn.execute('SELECT 1 FROM posts WHERE id=?', (post_id,)).fetchone():
+                conn.close(); return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            existing = conn.execute('SELECT 1 FROM bookmarks WHERE user_id=? AND post_id=?',
+                                    (user['id'], post_id)).fetchone()
+            if existing:
+                conn.execute('DELETE FROM bookmarks WHERE user_id=? AND post_id=?', (user['id'], post_id))
+                active = False
+            else:
+                conn.execute('INSERT INTO bookmarks(user_id,post_id,created_at) VALUES(?,?,?)',
+                             (user['id'], post_id, iso_now()))
+                active = True
+            conn.commit(); conn.close()
+            return self.send_json(200, {'bookmarked': active})
+
+        if path.startswith('/api/posts/') and path.endswith('/poll-vote'):
+            user = self.require_active()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+                post_id = int(path.split('/')[3])
+                option_id = int(body.get('option_id'))
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            except Exception:
+                return self.send_json(400, {'error': 'گزینه نظرسنجی معتبر نیست.'})
+            conn = core.connect()
+            post = conn.execute('SELECT * FROM posts WHERE id=?', (post_id,)).fetchone()
+            option = conn.execute('SELECT 1 FROM poll_options WHERE id=? AND post_id=?', (option_id, post_id)).fetchone()
+            if not post or not option:
+                conn.close(); return self.send_json(404, {'error': 'نظرسنجی پیدا نشد.'})
+            previous = conn.execute('SELECT option_id FROM poll_votes WHERE post_id=? AND user_id=?',
+                                    (post_id, user['id'])).fetchone()
+            conn.execute('''
+                INSERT INTO poll_votes(post_id,user_id,option_id,created_at) VALUES(?,?,?,?)
+                ON CONFLICT(post_id,user_id) DO UPDATE SET option_id=excluded.option_id, created_at=excluded.created_at
+            ''', (post_id, user['id'], option_id, iso_now()))
+            if not previous:
+                notify(conn, post['user_id'], user['id'], 'poll', 'رأی جدید',
+                       f"{user['display_name']} توی نظرسنجی پستت رأی داد.", post_id)
+            conn.commit()
+            poll = poll_payload(conn, post_id, user['id'])
+            conn.close()
+            return self.send_json(200, {'poll': poll})
+
+        if path == '/api/notifications/read':
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            conn = core.connect()
+            if body.get('all'):
+                conn.execute('UPDATE notifications SET is_read=1 WHERE user_id=?', (user['id'],))
+            else:
+                try:
+                    notification_id = int(body.get('id'))
+                except Exception:
+                    conn.close(); return self.send_json(400, {'error': 'اعلان معتبر نیست.'})
+                conn.execute('UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?',
+                             (notification_id, user['id']))
+            conn.commit(); conn.close()
+            return self.send_json(200, {'ok': True})
+
+        if path == '/api/cycle':
+            user = self.require_active()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+                cycle_length = int(body.get('cycle_length'))
+                period_length = int(body.get('period_length'))
+                last_period_date = dt.date.fromisoformat(str(body.get('last_period_date') or ''))
+            except ValueError:
+                return self.send_json(400, {'error': 'اطلاعات چرخه معتبر نیست.'})
+            if not (20 <= cycle_length <= 45 and 1 <= period_length <= 10):
+                return self.send_json(400, {'error': 'طول چرخه یا پریود خارج از بازه معمول تنظیمات است.'})
+            today = dt.datetime.now().astimezone().date()
+            if last_period_date > today or last_period_date < today - dt.timedelta(days=120):
+                return self.send_json(400, {'error': 'تاریخ شروع آخرین پریود معتبر نیست.'})
+            conn = core.connect()
+            conn.execute('''
+                INSERT INTO cycles(user_id,cycle_length,period_length,last_period_date,updated_at) VALUES(?,?,?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET cycle_length=excluded.cycle_length,period_length=excluded.period_length,
+                  last_period_date=excluded.last_period_date,updated_at=excluded.updated_at
+            ''', (user['id'], cycle_length, period_length, last_period_date.isoformat(), iso_now()))
+            conn.commit()
+            row = conn.execute('SELECT * FROM cycles WHERE user_id=?', (user['id'],)).fetchone()
+            conn.close()
+            return self.send_json(200, {'cycle': cycle_payload(row)})
+
+        if path == '/api/settings':
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            values = {
+                'notifications_enabled': 1 if body.get('notifications_enabled', True) else 0,
+                'profile_private': 1 if body.get('profile_private', False) else 0,
+                'allow_comments': 1 if body.get('allow_comments', True) else 0,
+            }
+            conn = core.connect()
+            conn.execute('''
+                INSERT INTO user_settings(user_id,notifications_enabled,profile_private,allow_comments,updated_at)
+                VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+                  notifications_enabled=excluded.notifications_enabled,
+                  profile_private=excluded.profile_private,
+                  allow_comments=excluded.allow_comments,
+                  updated_at=excluded.updated_at
+            ''', (user['id'], values['notifications_enabled'], values['profile_private'], values['allow_comments'], iso_now()))
+            conn.commit(); conn.close()
+            return self.send_json(200, {'settings': {k: bool(v) for k, v in values.items()}})
+
+        if path == '/api/profile':
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+                display_name = core.clean_display_name(body.get('display_name', user['display_name']))
+                username = core.clean_username(body.get('username', user['username']))
+                avatar = decode_image(body.get('avatar_data')) if body.get('avatar_data') else None
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            conn = core.connect()
+            try:
+                conn.execute('UPDATE users SET display_name=?,username=? WHERE id=?',
+                             (display_name, username, user['id']))
+                if avatar:
+                    conn.execute('''
+                        INSERT INTO profiles(user_id,avatar_mime,avatar_bytes,updated_at) VALUES(?,?,?,?)
+                        ON CONFLICT(user_id) DO UPDATE SET avatar_mime=excluded.avatar_mime,
+                          avatar_bytes=excluded.avatar_bytes,updated_at=excluded.updated_at
+                    ''', (user['id'], avatar[0], avatar[1], iso_now()))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                conn.rollback(); conn.close()
+                return self.send_json(409, {'error': 'این نام کاربری قبلاً گرفته شده.'})
+            row = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
+            has_avatar = bool(conn.execute('SELECT 1 FROM profiles WHERE user_id=? AND avatar_bytes IS NOT NULL',
+                                           (user['id'],)).fetchone())
+            conn.close()
+            payload = core.row_user(row); payload['has_avatar'] = has_avatar
+            return self.send_json(200, {'profile': payload})
+
+        if path == '/api/profile/password':
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            current = body.get('current_password') or ''
+            new = body.get('new_password') or ''
+            if not core.verify_password(current, user['password_salt'], user['password_hash']):
+                return self.send_json(403, {'error': 'رمز فعلی درست نیست.'})
+            if not (8 <= len(new) <= 128):
+                return self.send_json(400, {'error': 'رمز جدید باید حداقل ۸ کاراکتر باشد.'})
+            salt, digest = core.password_hash(new)
+            conn = core.connect()
+            conn.execute('UPDATE users SET password_salt=?,password_hash=? WHERE id=?', (salt, digest, user['id']))
+            conn.commit(); conn.close()
+            return self.send_json(200, {'ok': True})
+
+        if path == '/api/profile/delete':
+            user = self.require_user()
+            if not user:
+                return
+            try:
+                body = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            password = body.get('password') or ''
+            if not core.verify_password(password, user['password_salt'], user['password_hash']):
+                return self.send_json(403, {'error': 'رمز عبور درست نیست.'})
+            conn = core.connect()
+            conn.execute('DELETE FROM users WHERE id=?', (user['id'],))
+            conn.commit(); conn.close()
+            return self.send_json(200, {'ok': True, 'deleted': True})
+
+        if path == '/api/mood':
+            user = self.require_active()
+            if not user:
+                return
+            return super().do_POST()
+
+        return super().do_POST()
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip('/') or '/'
+        if path.startswith('/api/posts/'):
             user = self.require_user()
             if not user:
                 return
@@ -338,257 +821,30 @@ class Handler(BaseHTTPRequestHandler):
                 post_id = int(path.split('/')[3])
             except Exception:
                 return self.send_json(404, {'error': 'پست پیدا نشد.'})
-            conn = connect()
-            post = conn.execute('SELECT type FROM posts WHERE id=?', (post_id,)).fetchone()
-            if not post:
-                conn.close()
-                return self.send_json(404, {'error': 'پست پیدا نشد.'})
-            if post['type'] not in COMMENTS_ALLOWED:
-                conn.close()
-                return self.send_json(403, {'error': 'این بخش کامنت ندارد.'})
-            rows = conn.execute('''
-                SELECT c.id,c.text,c.created_at,u.display_name
-                FROM comments c JOIN users u ON u.id=c.user_id
-                WHERE c.post_id=? ORDER BY c.id ASC LIMIT 100
-            ''', (post_id,)).fetchall()
-            conn.close()
-            comments = [{
-                'id': r['id'], 'text': r['text'], 'created_at': r['created_at'],
-                'name': r['display_name'], 'avatar': (r['display_name'][:1] or 'و')
-            } for r in rows]
-            return self.send_json(200, {'comments': comments})
-        return self.send_json(404, {'error': 'مسیر پیدا نشد.'})
-
-    def do_POST(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip('/') or '/'
-        try:
-            body = self.read_json()
-        except ValueError as exc:
-            return self.send_json(400, {'error': str(exc)})
-
-        if path == '/api/register':
-            try:
-                username = clean_username(body.get('username'))
-                display_name = clean_display_name(body.get('display_name'))
-                password = body.get('password') or ''
-                if len(password) < 8 or len(password) > 128:
-                    raise ValueError('رمز عبور باید حداقل ۸ کاراکتر باشد.')
-            except ValueError as exc:
-                return self.send_json(400, {'error': str(exc)})
-            salt, digest = password_hash(password)
-            started = utcnow()
-            trial_expiry = started + dt.timedelta(days=TRIAL_DAYS)
-            conn = connect()
-            try:
-                cur = conn.execute('''
-                    INSERT INTO users(username,display_name,password_hash,password_salt,plan,trial_started_at,created_at,plan_expires_at)
-                    VALUES(?,?,?,?,?,?,?,?)
-                ''', (username, display_name, digest, salt, 'trial', iso_at(started), iso_at(started), iso_at(trial_expiry)))
-                token = make_session(conn, cur.lastrowid)
-                conn.commit()
-                row = conn.execute('SELECT * FROM users WHERE id=?', (cur.lastrowid,)).fetchone()
-            except sqlite3.IntegrityError:
-                conn.close()
-                return self.send_json(409, {'error': 'این نام کاربری قبلاً گرفته شده.'})
-            conn.close()
-            return self.send_json(201, {'token': token, 'user': row_user(row)})
-
-        if path == '/api/login':
-            try:
-                username = clean_username(body.get('username'))
-            except ValueError:
-                return self.send_json(401, {'error': 'نام کاربری یا رمز عبور اشتباه است.'})
-            password = body.get('password') or ''
-            conn = connect()
-            row = conn.execute('SELECT * FROM users WHERE username=? COLLATE NOCASE', (username,)).fetchone()
-            if not row or not verify_password(password, row['password_salt'], row['password_hash']):
-                conn.close()
-                return self.send_json(401, {'error': 'نام کاربری یا رمز عبور اشتباه است.'})
-            token = make_session(conn, row['id'])
-            conn.commit()
-            conn.close()
-            return self.send_json(200, {'token': token, 'user': row_user(row)})
-
-        user = self.require_user()
-        if not user:
-            return
-
-        if path == '/api/logout':
-            auth = self.headers.get('Authorization', '')
-            if auth.startswith('Bearer '):
-                token_hash = hashlib.sha256(auth[7:].strip().encode()).hexdigest()
-                conn = connect()
-                conn.execute('DELETE FROM sessions WHERE token_hash=?', (token_hash,))
-                conn.commit()
-                conn.close()
+            conn = core.connect()
+            row = conn.execute('SELECT user_id FROM posts WHERE id=?', (post_id,)).fetchone()
+            if not row:
+                conn.close(); return self.send_json(404, {'error': 'پست پیدا نشد.'})
+            if row['user_id'] != user['id']:
+                conn.close(); return self.send_json(403, {'error': 'فقط پست خودت رو می‌تونی حذف کنی.'})
+            conn.execute('DELETE FROM posts WHERE id=?', (post_id,))
+            conn.commit(); conn.close()
             return self.send_json(200, {'ok': True})
-
-        if path == '/api/payments/start':
-            plan = str(body.get('plan') or '')
-            if plan not in PLAN_PRICES:
-                return self.send_json(400, {'error': 'پلن انتخاب‌شده معتبر نیست.'})
-            intent = secrets.token_urlsafe(32)
-            amount = PLAN_PRICES[plan]
-            conn = connect()
-            conn.execute(
-                'INSERT INTO payment_intents(intent,user_id,plan,amount_toman,status,created_at) VALUES(?,?,?,?,?,?)',
-                (intent, user['id'], plan, amount, 'pending', iso_now())
-            )
-            conn.commit()
-            conn.close()
-            url = f"{PAYMENT_BASE_URL}/start?{urlencode({'intent': intent, 'plan': plan})}"
-            return self.send_json(201, {'ok': True, 'intent': intent, 'plan': plan, 'amount_toman': amount, 'url': url})
-
-        if path == '/api/payments/confirm':
-            receipt = str(body.get('receipt') or '').strip()
-            intent = str(body.get('intent') or '').strip()
-            if not (16 <= len(receipt) <= 128 and 20 <= len(intent) <= 128):
-                return self.send_json(400, {'error': 'اطلاعات پرداخت معتبر نیست.'})
-            conn = connect()
-            local = conn.execute(
-                'SELECT * FROM payment_intents WHERE intent=? AND user_id=?', (intent, user['id'])
-            ).fetchone()
-            if not local:
-                conn.close()
-                return self.send_json(404, {'error': 'درخواست پرداخت پیدا نشد.'})
-            existing = conn.execute('SELECT * FROM payment_receipts WHERE receipt=?', (receipt,)).fetchone()
-            if existing:
-                row = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
-                conn.close()
-                if existing['user_id'] != user['id'] or existing['intent'] != intent:
-                    return self.send_json(409, {'error': 'این رسید برای حساب دیگری ثبت شده است.'})
-                return self.send_json(200, {'ok': True, 'already_confirmed': True, 'user': row_user(row)})
-            conn.close()
-            try:
-                remote = hamoon_payment_status(receipt)
-            except ValueError as exc:
-                return self.send_json(502, {'error': str(exc)})
-            if not remote.get('ok') or remote.get('status') != 'paid':
-                return self.send_json(409, {'error': 'پرداخت هنوز تأیید نشده است.'})
-            if remote.get('intent') != intent or remote.get('plan') != local['plan']:
-                return self.send_json(409, {'error': 'اطلاعات پرداخت با سفارش شما مطابقت ندارد.'})
-            if int(remote.get('amount_toman') or 0) != int(local['amount_toman']):
-                return self.send_json(409, {'error': 'مبلغ پرداخت با سفارش شما مطابقت ندارد.'})
-            plan = local['plan']
-            now = utcnow()
-            conn = connect()
-            try:
-                conn.execute('BEGIN IMMEDIATE')
-                user_row = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
-                current_expiry = parse_iso(user_row['plan_expires_at'])
-                base = current_expiry if current_expiry and current_expiry > now else now
-                new_expiry = base + dt.timedelta(days=PLAN_DAYS[plan])
-                conn.execute('UPDATE users SET plan=?, plan_expires_at=? WHERE id=?', (plan, iso_at(new_expiry), user['id']))
-                conn.execute('UPDATE payment_intents SET status=?, receipt=?, paid_at=? WHERE intent=?', ('paid', receipt, iso_now(), intent))
-                conn.execute('''
-                    INSERT INTO payment_receipts(receipt,intent,user_id,plan,amount_toman,confirmed_at)
-                    VALUES(?,?,?,?,?,?)
-                ''', (receipt, intent, user['id'], plan, local['amount_toman'], iso_now()))
-                conn.commit()
-                row = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
-            except sqlite3.IntegrityError:
-                conn.rollback()
-                row = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
-            finally:
-                conn.close()
-            return self.send_json(200, {'ok': True, 'user': row_user(row)})
-
-        if path == '/api/posts':
-            post_type = body.get('type')
-            text = ' '.join((body.get('text') or '').strip().split())
-            if post_type not in POST_TYPES:
-                return self.send_json(400, {'error': 'بخش نامعتبر است.'})
-            if not (1 <= len(text) <= 2500):
-                return self.send_json(400, {'error': 'متن پست باید بین ۱ تا ۲۵۰۰ کاراکتر باشد.'})
-            anonymous = bool(body.get('anonymous')) and post_type in {'vent','gossip'}
-            conn = connect()
-            cur = conn.execute('INSERT INTO posts(user_id,type,text,anonymous,created_at) VALUES(?,?,?,?,?)', (user['id'], post_type, text, 1 if anonymous else 0, iso_now()))
-            conn.commit()
-            row = conn.execute('SELECT p.*,u.display_name FROM posts p JOIN users u ON u.id=p.user_id WHERE p.id=?', (cur.lastrowid,)).fetchone()
-            payload = post_json(conn, row, user['id'])
-            conn.close()
-            return self.send_json(201, {'post': payload})
-
-        if path.startswith('/api/posts/') and path.endswith('/react'):
-            try:
-                post_id = int(path.split('/')[3])
-            except Exception:
-                return self.send_json(404, {'error': 'پست پیدا نشد.'})
-            emoji = body.get('emoji') or ''
-            conn = connect()
-            post = conn.execute('SELECT type FROM posts WHERE id=?', (post_id,)).fetchone()
-            if not post:
-                conn.close()
-                return self.send_json(404, {'error': 'پست پیدا نشد.'})
-            if emoji not in REACTIONS[post['type']]:
-                conn.close()
-                return self.send_json(400, {'error': 'واکنش نامعتبر است.'})
-            existing = conn.execute('SELECT 1 FROM reactions WHERE post_id=? AND user_id=? AND emoji=?', (post_id,user['id'],emoji)).fetchone()
-            if existing:
-                conn.execute('DELETE FROM reactions WHERE post_id=? AND user_id=? AND emoji=?', (post_id,user['id'],emoji))
-                active = False
-            else:
-                conn.execute('INSERT INTO reactions(post_id,user_id,emoji,created_at) VALUES(?,?,?,?)', (post_id,user['id'],emoji,iso_now()))
-                active = True
-            conn.commit()
-            count = conn.execute('SELECT COUNT(*) n FROM reactions WHERE post_id=? AND emoji=?', (post_id,emoji)).fetchone()['n']
-            conn.close()
-            return self.send_json(200, {'active': active, 'count': count})
-
-        if path.startswith('/api/posts/') and path.endswith('/comments'):
-            try:
-                post_id = int(path.split('/')[3])
-            except Exception:
-                return self.send_json(404, {'error': 'پست پیدا نشد.'})
-            text = ' '.join((body.get('text') or '').strip().split())
-            if not (1 <= len(text) <= 1000):
-                return self.send_json(400, {'error': 'کامنت باید بین ۱ تا ۱۰۰۰ کاراکتر باشد.'})
-            conn = connect()
-            post = conn.execute('SELECT type FROM posts WHERE id=?', (post_id,)).fetchone()
-            if not post:
-                conn.close()
-                return self.send_json(404, {'error': 'پست پیدا نشد.'})
-            if post['type'] not in COMMENTS_ALLOWED:
-                conn.close()
-                return self.send_json(403, {'error': 'این بخش کامنت ندارد.'})
-            cur = conn.execute('INSERT INTO comments(post_id,user_id,text,created_at) VALUES(?,?,?,?)', (post_id,user['id'],text,iso_now()))
-            conn.commit()
-            count = conn.execute('SELECT COUNT(*) n FROM comments WHERE post_id=?', (post_id,)).fetchone()['n']
-            conn.close()
-            return self.send_json(201, {'comment': {'id': cur.lastrowid, 'text': text, 'name': user['display_name'], 'avatar': user['display_name'][:1], 'created_at': iso_now()}, 'count': count})
-
-        if path == '/api/mood':
-            try:
-                mood = int(body.get('mood'))
-            except Exception:
-                mood = 0
-            if mood not in {1,2,3,4,5}:
-                return self.send_json(400, {'error': 'حال انتخاب‌شده نامعتبر است.'})
-            day = utcnow().date().isoformat()
-            conn = connect()
-            conn.execute('''
-                INSERT INTO moods(user_id,day,mood,updated_at) VALUES(?,?,?,?)
-                ON CONFLICT(user_id,day) DO UPDATE SET mood=excluded.mood, updated_at=excluded.updated_at
-            ''', (user['id'], day, mood, iso_now()))
-            conn.commit()
-            conn.close()
-            return self.send_json(200, {'ok': True, 'mood': mood, 'day': day})
-
         return self.send_json(404, {'error': 'مسیر پیدا نشد.'})
 
 
 def main():
-    global DB_PATH
+    global DB_PATH, MAX_BODY
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--db', default='/var/lib/vestaland/vestaland.db')
     args = parser.parse_args()
-    DB_PATH = os.path.abspath(args.db)
+    DB_PATH = core.os.path.abspath(args.db)
+    MAX_BODY = FEATURE_MAX_BODY
     init_db()
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f'Vestaland API listening on {args.host}:{args.port} db={DB_PATH}', flush=True)
+    server = core.ThreadingHTTPServer((args.host, args.port), Handler)
+    print(f'Vestaland API v2 listening on {args.host}:{args.port} db={core.DB_PATH}', flush=True)
     server.serve_forever()
 
 

@@ -30,10 +30,14 @@ jobs:
           test -s assets/market-live.css
           test -s assets/market-native-checkout.js
           test -s assets/market-payment-hamoon.js
+          test -s assets/community-v2.js
+          test -s assets/community-v2.css
+          test -s backend/core_server.py
           test -s backend/server.py
           test -s backend/market_server.py
           test -s backend/market_payment_server.py
           test -s backend/smoke_test.py
+          test -s backend/smoke_test_v2.py
           test -s scripts/deploy-production.sh
           grep -q "وستالند" index.html
           node --check app.js
@@ -41,9 +45,11 @@ jobs:
           node --check assets/market-live.js
           node --check assets/market-native-checkout.js
           node --check assets/market-payment-hamoon.js
-          python3 -m py_compile backend/server.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py
+          node --check assets/community-v2.js
+          python3 -m py_compile backend/core_server.py backend/server.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py backend/smoke_test_v2.py
           bash -n scripts/deploy-production.sh
           python3 backend/smoke_test.py
+          python3 backend/smoke_test_v2.py
 
       - name: Prepare package
         shell: bash
@@ -77,19 +83,21 @@ jobs:
           for i in 1 2 3 4 5 6; do
             CODE=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs")
             API=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/health")
+            APIV2=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/v2/health")
             MARKET=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market/health")
             PAYMENT=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market-payment/health")
             VESTA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=vesta&per_page=1")
             CUTELLA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=cutella&per_page=1")
-            echo "Attempt $i: https=$CODE api=$API market=$MARKET payment=$PAYMENT"
+            echo "Attempt $i: https=$CODE api=$API api_v2=$APIV2 market=$MARKET payment=$PAYMENT"
             if [ "$CODE" = "200" ] \
               && grep -q "وستالند" /tmp/body 2>/dev/null \
               && echo "$API" | grep -q '"ok":true' \
+              && echo "$APIV2" | grep -q '"ok":true' \
               && echo "$MARKET" | grep -q '"ok":true' \
               && echo "$PAYMENT" | grep -q '"ok":true' \
               && echo "$VESTA" | grep -q '"items"' \
               && echo "$CUTELLA" | grep -q '"items"'; then
-              echo "Vestaland frontend + community + market + Hamoon payment API are reachable."
+              echo "Vestaland frontend + Community V2 + market + payment API are reachable."
               exit 0
             fi
             sleep 5
