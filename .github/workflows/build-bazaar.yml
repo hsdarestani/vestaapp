@@ -39,19 +39,24 @@ jobs:
           BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
         run: gradle -p android :app:assembleDebug --stacktrace
 
-      - name: Check signing secrets
+      - name: Detect signing secrets
+        id: signing
         env:
           KEYSTORE_B64: ${{ secrets.BAZAAR_KEYSTORE_BASE64 }}
           STORE_PASS: ${{ secrets.BAZAAR_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.BAZAAR_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.BAZAAR_KEY_PASSWORD }}
         run: |
-          test -n "$KEYSTORE_B64" || (echo 'Missing BAZAAR_KEYSTORE_BASE64' && exit 1)
-          test -n "$STORE_PASS" || (echo 'Missing BAZAAR_KEYSTORE_PASSWORD' && exit 1)
-          test -n "$KEY_ALIAS" || (echo 'Missing BAZAAR_KEY_ALIAS' && exit 1)
-          test -n "$KEY_PASS" || (echo 'Missing BAZAAR_KEY_PASSWORD' && exit 1)
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$STORE_PASS" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASS" ]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+            echo 'CafeBazaar signing credentials are available.'
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo 'CafeBazaar signing credentials are not configured; producing a verified debug APK only.'
+          fi
 
       - name: Restore signing key
+        if: steps.signing.outputs.available == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.BAZAAR_KEYSTORE_BASE64 }}
         run: |
@@ -59,6 +64,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/vestaland-bazaar.jks"
 
       - name: Build signed APK and AAB
+        if: steps.signing.outputs.available == 'true'
         env:
           BAZAAR_KEYSTORE_PATH: ${{ runner.temp }}/vestaland-bazaar.jks
           BAZAAR_KEYSTORE_PASSWORD: ${{ secrets.BAZAAR_KEYSTORE_PASSWORD }}
@@ -69,9 +75,13 @@ jobs:
 
       - name: Collect outputs
         run: |
+          set -euo pipefail
           mkdir -p bazaar-output
-          cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.1-cafebazaar.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-cafebazaar.aab
+          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.0.1-test.apk
+          if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.1-cafebazaar.apk
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-cafebazaar.aab
+          fi
           sha256sum bazaar-output/* > bazaar-output/SHA256SUMS.txt
 
       - name: Upload CafeBazaar package
