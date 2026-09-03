@@ -21,6 +21,7 @@ DETECTED="$(nginx -T 2>/dev/null | awk -v d="$DOMAIN" '$0 ~ "server_name[[:space
 mkdir -p "$ROOT" /var/lib/vestaland
 tar -xzf "$PACKAGE" -C "$ROOT"
 rm -f "$PACKAGE"
+rm -f "$ROOT/assets/market-payment-hamoon.js"
 chown -R www-data:www-data "$ROOT" /var/lib/vestaland 2>/dev/null || true
 find "$ROOT" -type d -exec chmod 755 {} \;
 find "$ROOT" -type f -exec chmod 644 {} \;
@@ -68,7 +69,7 @@ SERVICE
 
 cat > /etc/systemd/system/vestaland-market-payment.service <<SERVICE
 [Unit]
-Description=Vestaland Hamoon Marketplace Payment API
+Description=Vestaland Marketplace Payment API
 After=network-online.target
 Wants=network-online.target
 
@@ -119,7 +120,6 @@ if [ -s "$CERT_DIR/fullchain.pem" ] && [ -s "$CERT_DIR/privkey.pem" ]; then
   CERT_OK=1
 fi
 
-# First install an HTTP-only config so ACME can succeed if a certificate is ever missing.
 cat > "$CONF" <<NGINX
 server {
     listen 80;
