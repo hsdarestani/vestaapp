@@ -25,6 +25,13 @@
     document.body.appendChild(community);
   }
 
+  if (!document.querySelector('script[data-vestaland-jalali-calendar]')) {
+    const jalali = document.createElement('script');
+    jalali.src = '/assets/jalali-calendar.js?v=20260903-1';
+    jalali.dataset.vestalandJalaliCalendar = '1';
+    document.body.appendChild(jalali);
+  }
+
   if (document.querySelector('script[data-vestaland-hamoon-market-payment]')) return;
   const script = document.createElement('script');
   script.src = '/assets/market-payment-hamoon.js?v=20260901-2228';
