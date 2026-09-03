@@ -132,7 +132,7 @@ def init_db():
         amount_toman INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'pending',
         receipt TEXT UNIQUE,
-      created_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
         paid_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_payment_intents_user ON payment_intents(user_id, created_at DESC);
@@ -171,10 +171,10 @@ def verify_password(password, salt_hex, expected_hex):
 def clean_username(value):
     value = (value or '').strip().lower()
     if not (3 <= len(value) <= 24):
-        raise ValueError('نام کاربرٌ باید بین ۳ تا ۲۴ کارافتر باشد.')
+        raise ValueError('نام کاربری باید بین ۳ تا ۲۴ کاراکتر باشد.')
     allowed = set('abcdefghijklmnopqrstuvwxyz0123456789_.-')
     if any(ch not in allowed for ch in value):
-        raise ValueError('نام کاربرٌ فقط می‌تواند شامؤ خصروف انگلیسی، عدد، نقطه، خط تیره و آندرلاین باشد.')
+        raise ValueError('نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، نقطه، خط تیره و آندرلاین باشد.')
     return value
 
 
@@ -259,7 +259,7 @@ def hamoon_payment_status(receipt):
     except urllib.error.HTTPError as exc:
         try:
             payload = json.loads(exc.read().decode('utf-8'))
-            raise ValueError(payload.get('error') or 'پرداخت در هامون‌کلود پیدا نشد.')
+            raise ValueError(payload.get('error') or 'پرداخت در درگاه پیدا نشد.')
         except json.JSONDecodeError:
             raise ValueError('امکان بررسی پرداخت وجود ندارد.')
     except Exception as exc:
@@ -307,7 +307,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/') or '/'
         if path == '/api/health':
-            return self.send_json(200, {'ok': True, 'service': 'vestaland-api', 'payments': 'hamooncloud-zibal'})
+            return self.send_json(200, {'ok': True, 'service': 'vestaland-api', 'payments': 'zibal'})
         if path == '/api/me':
             user = self.require_user()
             if user:
