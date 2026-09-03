@@ -2,26 +2,18 @@
   if (window.__vestalandNativeMarketCheckout) return;
   window.__vestalandNativeMarketCheckout = true;
 
-  function neutralizePaymentBranding(root = document) {
+  function keepPaymentNoteNeutral(root = document) {
     const note = root.querySelector?.('.payment-note');
-    if (note) {
-      const icon = note.querySelector('svg')?.outerHTML || '';
-      note.innerHTML = `${icon} پرداخت امن`;
-    }
-    root.querySelectorAll?.('*').forEach?.(el => {
-      if (el.children.length) return;
-      const text = (el.textContent || '').trim();
-      if (/هامون|hamoon/i.test(text) || /زیبال\s*\/\s*هامون/i.test(text)) {
-        el.textContent = text.replace(/پرداخت امن از طریق\s*زیبال\s*\/\s*هامون(?:‌|-)?کلود/gi, 'پرداخت امن').replace(/هامون(?:‌|-)?کلود/gi, '').replace(/\s{2,}/g, ' ').trim();
-      }
-    });
+    if (!note) return;
+    const icon = note.querySelector('svg')?.outerHTML || '';
+    note.innerHTML = `${icon} پرداخت امن`;
   }
 
-  neutralizePaymentBranding();
+  keepPaymentNoteNeutral();
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => neutralizePaymentBranding(), {once:true});
+    document.addEventListener('DOMContentLoaded', () => keepPaymentNoteNeutral(), {once:true});
   }
-  new MutationObserver(() => neutralizePaymentBranding()).observe(document.documentElement, {subtree:true, childList:true});
+  new MutationObserver(() => keepPaymentNoteNeutral()).observe(document.documentElement, {subtree:true, childList:true});
 
   if (!document.querySelector('link[data-vestaland-minimal-v5]')) {
     const css = document.createElement('link');
