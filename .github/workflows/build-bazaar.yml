@@ -35,6 +35,8 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Compile Android app
+        env:
+          BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
         run: gradle -p android :app:assembleDebug --stacktrace
 
       - name: Check signing secrets
@@ -62,18 +64,19 @@ jobs:
           BAZAAR_KEYSTORE_PASSWORD: ${{ secrets.BAZAAR_KEYSTORE_PASSWORD }}
           BAZAAR_KEY_ALIAS: ${{ secrets.BAZAAR_KEY_ALIAS }}
           BAZAAR_KEY_PASSWORD: ${{ secrets.BAZAAR_KEY_PASSWORD }}
+          BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
         run: gradle -p android clean :app:assembleRelease :app:bundleRelease --stacktrace
 
       - name: Collect outputs
         run: |
           mkdir -p bazaar-output
-          cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.0-cafebazaar.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.0-cafebazaar.aab
+          cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.1-cafebazaar.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-cafebazaar.aab
           sha256sum bazaar-output/* > bazaar-output/SHA256SUMS.txt
 
       - name: Upload CafeBazaar package
         uses: actions/upload-artifact@v4
         with:
-          name: vestaland-cafebazaar-1.0.0
+          name: vestaland-cafebazaar-1.0.1
           path: bazaar-output/
           retention-days: 30
