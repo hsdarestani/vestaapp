@@ -1,0 +1,30 @@
+name: Fetch CafeBazaar Bundle Signer
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fetch-bazaar-bundlesigner.yml'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download official CafeBazaar bundle signer
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 \
+            -o bundlesigner-0.1.13.jar \
+            https://github.com/cafebazaar/bundle-signer/releases/download/v0.1.13/bundlesigner-0.1.13.jar
+          test -s bundlesigner-0.1.13.jar
+          sha256sum bundlesigner-0.1.13.jar > SHA256SUMS.txt
+      - name: Upload tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: cafebazaar-bundlesigner-0.1.13
+          path: |
+            bundlesigner-0.1.13.jar
+            SHA256SUMS.txt
+          retention-days: 1
