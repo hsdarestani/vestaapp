@@ -32,6 +32,7 @@ jobs:
           test -s assets/market-payment-hamoon.js
           test -s assets/community-v2.js
           test -s assets/community-v2.css
+          test -s assets/jalali-calendar.js
           test -s backend/core_server.py
           test -s backend/server.py
           test -s backend/market_server.py
@@ -46,6 +47,7 @@ jobs:
           node --check assets/market-native-checkout.js
           node --check assets/market-payment-hamoon.js
           node --check assets/community-v2.js
+          node --check assets/jalali-calendar.js
           python3 -m py_compile backend/core_server.py backend/server.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py backend/smoke_test_v2.py
           bash -n scripts/deploy-production.sh
           python3 backend/smoke_test.py
@@ -88,9 +90,10 @@ jobs:
             PAYMENT=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market-payment/health")
             COMMUNITY_JS=$(curl -sS -o /tmp/community-v2.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/community-v2.js?v=20260903-1")
             COMMUNITY_CSS=$(curl -sS -o /tmp/community-v2.css -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/community-v2.css?v=20260903-1")
+            JALALI_JS=$(curl -sS -o /tmp/jalali-calendar.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/jalali-calendar.js?v=20260903-1")
             VESTA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=vesta&per_page=1")
             CUTELLA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=cutella&per_page=1")
-            echo "Attempt $i: https=$CODE api=$API api_v2=$APIV2 market=$MARKET payment=$PAYMENT community_js=$COMMUNITY_JS community_css=$COMMUNITY_CSS"
+            echo "Attempt $i: https=$CODE api=$API api_v2=$APIV2 market=$MARKET payment=$PAYMENT community_js=$COMMUNITY_JS community_css=$COMMUNITY_CSS jalali_js=$JALALI_JS"
             echo "$VESTA" | grep -q '"items"' || echo "Warning: Vesta product feed did not return items on attempt $i"
             echo "$CUTELLA" | grep -q '"items"' || echo "Warning: Cutella product feed did not return items on attempt $i"
             if [ "$CODE" = "200" ] \
@@ -101,8 +104,10 @@ jobs:
               && echo "$PAYMENT" | grep -q '"ok":true' \
               && [ "$COMMUNITY_JS" = "200" ] \
               && [ "$COMMUNITY_CSS" = "200" ] \
-              && grep -q "vestalandCommunityV2" /tmp/community-v2.js 2>/dev/null; then
-              echo "Vestaland frontend + Community V2 + market + payment services are reachable."
+              && [ "$JALALI_JS" = "200" ] \
+              && grep -q "vestalandCommunityV2" /tmp/community-v2.js 2>/dev/null \
+              && grep -q "vestalandJalaliCalendar" /tmp/jalali-calendar.js 2>/dev/null; then
+              echo "Vestaland frontend + Jalali calendar + Community V2 + market + payment services are reachable."
               exit 0
             fi
             sleep 5
