@@ -53,9 +53,17 @@
     document.body.appendChild(jalali);
   }
 
-  if (document.querySelector('script[data-vestaland-market-payment]')) return;
-  const script = document.createElement('script');
-  script.src = '/assets/market-payment.js?v=20260903-1';
-  script.dataset.vestalandMarketPayment = '1';
-  document.body.appendChild(script);
+  if (!document.querySelector('script[data-vestaland-production-hardening]')) {
+    const hardening = document.createElement('script');
+    hardening.src = '/assets/production-hardening.js?v=20260903-1';
+    hardening.dataset.vestalandProductionHardening = '1';
+    document.body.appendChild(hardening);
+  }
+
+  if (!document.querySelector('script[data-vestaland-market-payment]')) {
+    const script = document.createElement('script');
+    script.src = '/assets/market-payment.js?v=20260903-1';
+    script.dataset.vestalandMarketPayment = '1';
+    document.body.appendChild(script);
+  }
 })();
