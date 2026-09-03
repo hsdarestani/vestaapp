@@ -330,7 +330,7 @@ def confirm_payment(body):
 
     status = hamoon_status(receipt)
     if not status.get('ok') or status.get('status') != 'paid':
-        raise ValueError('پرداخت هنوز توسط هامون تأیید نشده است.')
+        raise ValueError('پرداخت هنوز توسط درگاه تأیید نشده است.')
     if str(status.get('intent') or '') != intent:
         raise ValueError('رسید با سفارش مطابقت ندارد.')
     if str(status.get('plan') or '') != row['store']:
@@ -410,7 +410,7 @@ class Handler(BaseHTTPRequestHandler):
         qs = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items() if v}
         try:
             if path == '/api/market-payment/health':
-                return self.send_json(200, {'ok': True, 'service': 'vestaland-market-payment', 'version': 2, 'gateway': 'pay.hamooncloud.ir', 'woo_sync': True})
+                return self.send_json(200, {'ok': True, 'service': 'vestaland-market-payment', 'version': 2, 'gateway': 'zibal', 'woo_sync': True})
             if path == '/api/market-payment/intent':
                 row = get_intent(str(qs.get('intent') or ''))
                 if not row: return self.send_json(404, {'ok': False, 'error': 'NOT_FOUND'})
