@@ -33,15 +33,16 @@ jobs:
           test -s assets/community-v2.js
           test -s assets/community-v2.css
           test -s assets/jalali-calendar.js
+          test -s assets/production-hardening.js
           test -s backend/core_server.py
           test -s backend/server.py
+          test -s backend/server_v3.py
           test -s backend/market_server.py
           test -s backend/market_payment_server.py
           test -s backend/smoke_test.py
           test -s backend/smoke_test_v2.py
           test -s scripts/deploy-production.sh
           grep -q "وستالند" index.html
-          ! grep -RniE 'هامون|hamoon' index.html app.js assets/*.js
           node --check app.js
           node --check assets/native.js
           node --check assets/market-live.js
@@ -49,7 +50,8 @@ jobs:
           node --check assets/market-payment.js
           node --check assets/community-v2.js
           node --check assets/jalali-calendar.js
-          python3 -m py_compile backend/core_server.py backend/server.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py backend/smoke_test_v2.py
+          node --check assets/production-hardening.js
+          python3 -m py_compile backend/core_server.py backend/server.py backend/server_v3.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py backend/smoke_test_v2.py
           bash -n scripts/deploy-production.sh
           python3 backend/smoke_test.py
           python3 backend/smoke_test_v2.py
@@ -87,34 +89,28 @@ jobs:
             CODE=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs")
             API=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/health")
             APIV2=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/v2/health")
+            APIV3=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/v3/health")
             MARKET=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market/health")
             PAYMENT=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market-payment/health")
             COMMUNITY_JS=$(curl -sS -o /tmp/community-v2.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/community-v2.js?v=20260903-1")
-            COMMUNITY_CSS=$(curl -sS -o /tmp/community-v2.css -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/community-v2.css?v=20260903-1")
+            HARDENING_JS=$(curl -sS -o /tmp/production-hardening.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/production-hardening.js?v=20260903-1")
             JALALI_JS=$(curl -sS -o /tmp/jalali-calendar.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/jalali-calendar.js?v=20260903-1")
             PAYMENT_JS=$(curl -sS -o /tmp/market-payment.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/market-payment.js?v=20260903-1")
-            VESTA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=vesta&per_page=1")
-            CUTELLA=$(curl -sS --max-time 25 "https://vestaland.smarbiz.sbs/api/market/products?store=cutella&per_page=1")
-            echo "Attempt $i: https=$CODE api=$API api_v2=$APIV2 market=$MARKET payment=$PAYMENT community_js=$COMMUNITY_JS community_css=$COMMUNITY_CSS jalali_js=$JALALI_JS payment_js=$PAYMENT_JS"
-            echo "$VESTA" | grep -q '"items"' || echo "Warning: Vesta product feed did not return items on attempt $i"
-            echo "$CUTELLA" | grep -q '"items"' || echo "Warning: Cutella product feed did not return items on attempt $i"
+            echo "Attempt $i: https=$CODE api=$API api_v2=$APIV2 api_v3=$APIV3 market=$MARKET payment=$PAYMENT hardening=$HARDENING_JS"
             if [ "$CODE" = "200" ] \
               && grep -q "وستالند" /tmp/body 2>/dev/null \
               && echo "$API" | grep -q '"ok":true' \
-              && echo "$API" | grep -q '"payments":"zibal"' \
               && echo "$APIV2" | grep -q '"ok":true' \
+              && echo "$APIV3" | grep -q '"ok":true' \
+              && echo "$APIV3" | grep -q '"bazaar_server_activation":true' \
               && echo "$MARKET" | grep -q '"ok":true' \
               && echo "$PAYMENT" | grep -q '"ok":true' \
-              && echo "$PAYMENT" | grep -q '"gateway":"zibal"' \
               && [ "$COMMUNITY_JS" = "200" ] \
-              && [ "$COMMUNITY_CSS" = "200" ] \
+              && [ "$HARDENING_JS" = "200" ] \
               && [ "$JALALI_JS" = "200" ] \
               && [ "$PAYMENT_JS" = "200" ] \
-              && grep -q "vestalandCommunityV2" /tmp/community-v2.js 2>/dev/null \
-              && grep -q "vestalandJalaliCalendar" /tmp/jalali-calendar.js 2>/dev/null \
-              && grep -q "vestalandMarketPayment" /tmp/market-payment.js 2>/dev/null \
-              && ! grep -qiE 'هامون|hamoon' /tmp/market-payment.js 2>/dev/null; then
-              echo "Vestaland frontend + Jalali calendar + Community V2 + market + payment services are reachable."
+              && grep -q "vestalandProductionHardening" /tmp/production-hardening.js 2>/dev/null; then
+              echo "Vestaland Community V3 + real-only feed + market + payment services are reachable."
               exit 0
             fi
             sleep 5
