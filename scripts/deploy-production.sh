@@ -18,7 +18,7 @@ fi
 DETECTED="$(nginx -T 2>/dev/null | awk -v d="$DOMAIN" '$0 ~ "server_name[[:space:]].*" d {hit=1} hit && $1=="root" {gsub(";","",$2); print $2; exit}' || true)"
 [ -n "$DETECTED" ] && ROOT="$DETECTED"
 
-mkdir -p "$ROOT" /var/lib/vestaland
+mkdir -p "$ROOT" /var/lib/vestaland /etc/vestaland
 tar -xzf "$PACKAGE" -C "$ROOT"
 rm -f "$PACKAGE"
 rm -f "$ROOT/assets/market-payment-hamoon.js"
@@ -28,7 +28,7 @@ find "$ROOT" -type f -exec chmod 644 {} \;
 
 cat > /etc/systemd/system/vestaland-api.service <<SERVICE
 [Unit]
-Description=Vestaland Community API
+Description=Vestaland Community API V3
 After=network.target
 
 [Service]
@@ -36,7 +36,8 @@ Type=simple
 User=www-data
 Group=www-data
 WorkingDirectory=$ROOT
-ExecStart=/usr/bin/python3 $ROOT/backend/server.py --host 127.0.0.1 --port $API_PORT --db /var/lib/vestaland/vestaland.db
+EnvironmentFile=-/etc/vestaland/bazaar.env
+ExecStart=/usr/bin/python3 $ROOT/backend/server_v3.py --host 127.0.0.1 --port $API_PORT --db /var/lib/vestaland/vestaland.db
 Restart=always
 RestartSec=2
 NoNewPrivileges=true
@@ -96,7 +97,7 @@ systemctl restart vestaland-market-payment.service
 
 for i in $(seq 1 12); do
   API_OK=0; MARKET_OK=0; PAYMENT_OK=0
-  curl -fsS --max-time 2 "http://127.0.0.1:$API_PORT/api/health" | grep -q '"ok":true' && API_OK=1 || true
+  curl -fsS --max-time 2 "http://127.0.0.1:$API_PORT/api/v3/health" | grep -q '"ok":true' && API_OK=1 || true
   curl -fsS --max-time 2 "http://127.0.0.1:$MARKET_PORT/api/market/health" | grep -q '"ok":true' && MARKET_OK=1 || true
   curl -fsS --max-time 2 "http://127.0.0.1:$PAYMENT_PORT/api/market-payment/health" | grep -q '"ok":true' && PAYMENT_OK=1 || true
   if [ "$API_OK" = 1 ] && [ "$MARKET_OK" = 1 ] && [ "$PAYMENT_OK" = 1 ]; then
@@ -105,7 +106,7 @@ for i in $(seq 1 12); do
   fi
   if [ "$i" = 12 ]; then
     systemctl status vestaland-api.service vestaland-market.service vestaland-market-payment.service --no-pager || true
-    journalctl -u vestaland-market-payment.service -n 80 --no-pager || true
+    journalctl -u vestaland-api.service -n 80 --no-pager || true
     exit 1
   fi
   sleep 1
@@ -249,6 +250,6 @@ NGINX
 nginx -t
 systemctl reload nginx
 
-echo "API: $(curl -fsS http://127.0.0.1:$API_PORT/api/health)"
+echo "API V3: $(curl -fsS http://127.0.0.1:$API_PORT/api/v3/health)"
 echo "Market: $(curl -fsS http://127.0.0.1:$MARKET_PORT/api/market/health)"
 echo "Market payment: $(curl -fsS http://127.0.0.1:$PAYMENT_PORT/api/market-payment/health)"
