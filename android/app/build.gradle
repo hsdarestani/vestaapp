@@ -10,8 +10,15 @@ android {
         applicationId 'ir.vestaland.app'
         minSdk 26
         targetSdk 36
-        versionCode 1
-        versionName '1.0.0'
+        versionCode 2
+        versionName '1.0.1'
+
+        def bazaarRsa = (System.getenv('BAZAAR_RSA_PUBLIC_KEY') ?: '').replace('\\', '\\\\').replace('"', '\\"')
+        buildConfigField 'String', 'BAZAAR_RSA_PUBLIC_KEY', '"' + bazaarRsa + '"'
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     def ksPath = System.getenv('BAZAAR_KEYSTORE_PATH')
@@ -42,5 +49,7 @@ android {
 
 dependencies {
     implementation 'androidx.activity:activity:1.10.1'
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.work:work-runtime:2.10.1'
     implementation 'com.github.cafebazaar.Poolakey:poolakey:2.2.0'
 }
