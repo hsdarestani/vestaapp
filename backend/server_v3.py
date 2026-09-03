@@ -63,11 +63,11 @@ def init_v3():
 
 
 def clean_public_key(value):
-    value = ''.join((value or '').strip().split())
-    if value.startswith('-----BEGIN'):
-        lines = [x.strip() for x in (value or '').splitlines() if x and not x.startswith('-----')]
-        value = ''.join(lines)
-    return value
+    raw = (value or '').strip()
+    if raw.startswith('-----BEGIN'):
+        lines = [x.strip() for x in raw.splitlines() if x and not x.startswith('-----')]
+        return ''.join(lines)
+    return ''.join(raw.split())
 
 
 def verify_bazaar_signature(original_json, signature_b64):
@@ -148,8 +148,12 @@ def activate_user(conn, user_id, plan, purchase_time_ms, restore=False):
     return conn.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
 
 
+def user_agent_is_bazaar(headers):
+    return 'VestalandBazaar/' in str(headers.get('User-Agent', ''))
+
+
 class Handler(v2.Handler):
-    server_version = 'VestalandAPI/3.0'
+    server_version = 'VestalandAPI/3.1'
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -160,6 +164,7 @@ class Handler(v2.Handler):
                 'service': 'vestaland-community-v3',
                 'bazaar_server_activation': True,
                 'bazaar_signature_verification': bool(clean_public_key(os.environ.get('BAZAAR_RSA_PUBLIC_KEY', ''))),
+                'closed_app_notification_api': True,
             })
         return super().do_GET()
 
@@ -195,6 +200,58 @@ class Handler(v2.Handler):
                 'product_id': BAZAAR_PRODUCTS[plan],
                 'developer_payload': developer_payload,
                 'expires_at': iso_at(expires),
+            })
+
+        if path == '/api/bazaar/subscription/legacy-claim':
+            user = self.require_user()
+            if not user:
+                return
+            if not user_agent_is_bazaar(self.headers):
+                return self.send_json(403, {'error': 'این مسیر فقط برای نسخه کافه‌بازار اپ فعال است.'})
+            try:
+                body = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, {'error': str(exc)})
+            plan = str(body.get('plan') or '')
+            order_id = str(body.get('order_id') or '').strip()
+            purchase_token = str(body.get('purchase_token') or '').strip()
+            if plan not in BAZAAR_PRODUCTS:
+                return self.send_json(400, {'error': 'پلن خرید معتبر نیست.'})
+            if len(order_id) < 4 or len(purchase_token) < 8:
+                return self.send_json(400, {'error': 'رسید خرید ناقص است.'})
+            conn = core.connect()
+            existing = conn.execute(
+                'SELECT * FROM bazaar_subscription_claims WHERE purchase_token=? OR order_id=? LIMIT 1',
+                (purchase_token, order_id),
+            ).fetchone()
+            if existing and int(existing['user_id']) != int(user['id']):
+                conn.close()
+                return self.send_json(409, {'error': 'این خرید قبلاً برای حساب دیگری ثبت شده است.'})
+            now_iso = iso_at(utcnow())
+            try:
+                conn.execute('BEGIN IMMEDIATE')
+                if existing:
+                    updated = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
+                    conn.execute('UPDATE bazaar_subscription_claims SET last_seen_at=? WHERE purchase_token=?', (now_iso, purchase_token))
+                else:
+                    conn.execute('''
+                        INSERT INTO bazaar_subscription_claims(
+                            purchase_token,order_id,user_id,plan,product_id,purchase_time,verification,first_seen_at,last_seen_at
+                        ) VALUES(?,?,?,?,?,?,?,?,?)
+                    ''', (purchase_token, order_id, user['id'], plan, BAZAAR_PRODUCTS[plan], 0, 'native-token-legacy', now_iso, now_iso))
+                    updated = activate_user(conn, user['id'], plan, 0, restore=False)
+                conn.commit()
+            except sqlite3.IntegrityError:
+                conn.rollback(); conn.close()
+                return self.send_json(409, {'error': 'این رسید قبلاً ثبت شده است.'})
+            except Exception:
+                conn.rollback(); conn.close(); raise
+            conn.close()
+            return self.send_json(200, {
+                'ok': True,
+                'server_activated': True,
+                'verification': 'native-token-legacy',
+                'user': core.row_user(updated),
             })
 
         if path == '/api/bazaar/subscription/confirm':
@@ -261,6 +318,7 @@ class Handler(v2.Handler):
                         'UPDATE bazaar_subscription_claims SET last_seen_at=?,verification=? WHERE purchase_token=?',
                         (now_iso, verification if verified else existing['verification'], purchase['purchase_token']),
                     )
+                    updated = conn.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
                 else:
                     conn.execute('''
                         INSERT INTO bazaar_subscription_claims(
@@ -270,8 +328,8 @@ class Handler(v2.Handler):
                         purchase['purchase_token'], purchase['order_id'], user['id'], plan, purchase['product_id'],
                         purchase['purchase_time'], verification, now_iso, now_iso,
                     ))
+                    updated = activate_user(conn, user['id'], plan, purchase['purchase_time'], restore=restore)
                 conn.execute('UPDATE bazaar_purchase_intents SET used_at=? WHERE intent=?', (now_iso, intent_row['intent']))
-                updated = activate_user(conn, user['id'], plan, purchase['purchase_time'], restore=restore)
                 conn.commit()
             except sqlite3.IntegrityError:
                 conn.rollback(); conn.close()
@@ -291,7 +349,6 @@ class Handler(v2.Handler):
 
 
 def main():
-    v2.DB_PATH = ''
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
