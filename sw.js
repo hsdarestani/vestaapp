@@ -1,4 +1,4 @@
-const CACHE='vestaland-v16';
+const CACHE='vestaland-v17';
 const MARKET_CACHE='vestaland-market-data-v4';
 const IMAGE_CACHE='vestaland-market-images-v4';
 const CORE=[
@@ -6,11 +6,11 @@ const CORE=[
   '/index.html',
   '/styles.css?v=20260901-1958',
   '/desktop-enhancements.css?v=20260901-1958',
-  '/app.js?v=20260901-1958',
+  '/app.js?v=20260903-onboarding-fix',
   '/assets/native.js?v=20260901-1958',
   '/assets/market-live.css?v=20260901-1958',
   '/assets/market-live-v2.js?v=20260901-1958',
-  '/assets/market-native-checkout.js?v=20260903-1',
+  '/assets/market-native-checkout.js?v=20260903-onboarding-fix',
   '/assets/market-payment.js?v=20260903-1',
   '/assets/production-hardening.js?v=20260903-1',
   '/assets/minimal-v5.css?v=20260901-2228',
