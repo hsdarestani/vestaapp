@@ -52,7 +52,7 @@ jobs:
             echo 'CafeBazaar signing credentials are available.'
           else
             echo 'available=false' >> "$GITHUB_OUTPUT"
-            echo 'CafeBazaar signing credentials are not configured; producing a verified debug APK only.'
+            echo 'CafeBazaar signing credentials are not configured; building an unsigned release AAB for offline signing.'
           fi
 
       - name: Restore signing key
@@ -73,6 +73,12 @@ jobs:
           BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
         run: gradle -p android clean :app:assembleRelease :app:bundleRelease --stacktrace
 
+      - name: Build unsigned release AAB
+        if: steps.signing.outputs.available != 'true'
+        env:
+          BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
+        run: gradle -p android :app:bundleRelease --stacktrace
+
       - name: Collect outputs
         run: |
           set -euo pipefail
@@ -81,6 +87,8 @@ jobs:
           if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
             cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.1-cafebazaar.apk
             cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-cafebazaar.aab
+          else
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-unsigned.aab
           fi
           sha256sum bazaar-output/* > bazaar-output/SHA256SUMS.txt
 
