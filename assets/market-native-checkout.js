@@ -32,9 +32,9 @@
     document.body.appendChild(jalali);
   }
 
-  if (document.querySelector('script[data-vestaland-hamoon-market-payment]')) return;
+  if (document.querySelector('script[data-vestaland-market-payment]')) return;
   const script = document.createElement('script');
-  script.src = '/assets/market-payment-hamoon.js?v=20260901-2228';
-  script.dataset.vestalandHamoonMarketPayment = '1';
+  script.src = '/assets/market-payment.js?v=20260903-1';
+  script.dataset.vestalandMarketPayment = '1';
   document.body.appendChild(script);
 })();
