@@ -1,0 +1,197 @@
+/* Vestaland editorial v6 — minimal base, richer feminine visual language */
+:root{
+  --e-ink:#19171f;
+  --e-pink:#df326d;
+  --e-berry:#a82458;
+  --e-blush:#fff0f5;
+  --e-peach:#fff3e9;
+  --e-lilac:#f3efff;
+  --e-mint:#edf8f2;
+  --e-sky:#eef7ff;
+  --e-cream:#fffaf6;
+  --e-line:#ece8ed;
+  --e-shadow:0 10px 28px rgba(52,35,45,.065);
+}
+
+html,body,.app-shell{background:#fbfafb!important}
+body{
+  background:
+    radial-gradient(circle at 8% 3%,rgba(223,50,109,.055),transparent 20rem),
+    radial-gradient(circle at 92% 28%,rgba(116,89,217,.04),transparent 22rem),
+    #fbfafb!important;
+}
+.main-app{position:relative}
+
+/* Header: still clean, but branded */
+.app-header{
+  background:rgba(255,255,255,.94)!important;
+  border-bottom:1px solid rgba(231,226,233,.92)!important;
+  backdrop-filter:blur(18px)!important;
+  overflow:hidden;
+}
+.app-header:after{
+  content:'';position:absolute;inset:auto 16px 0 auto;width:34px;height:2px;border-radius:3px;
+  background:linear-gradient(90deg,var(--e-pink),#e9a0bb);opacity:.9
+}
+.mini-brand{color:var(--e-pink)!important;letter-spacing:-.15px}
+.avatar-btn{background:linear-gradient(145deg,#fff,#fff4f8)!important;border-color:#f0e3e8!important}
+.avatar-btn span,.profile-avatar{
+  background:linear-gradient(145deg,#ffe9f0,#f4edff)!important;
+  color:var(--e-berry)!important
+}
+
+/* Shortcut icons regain personality without becoming noisy */
+.home-shortcuts{gap:6px!important}
+.shortcut-icon{position:relative;overflow:hidden;transition:transform .18s ease,border-color .18s ease!important}
+.shortcut:nth-child(1) .shortcut-icon{background:linear-gradient(145deg,#fff1f6,#ffe7ef)!important;color:#d52f68!important;border-color:#f7dce6!important}
+.shortcut:nth-child(2) .shortcut-icon{background:linear-gradient(145deg,#fff7eb,#fff0da)!important;color:#ad6d18!important;border-color:#f7ead4!important}
+.shortcut:nth-child(3) .shortcut-icon{background:linear-gradient(145deg,#f7f3ff,#eee8ff)!important;color:#7056c8!important;border-color:#e7e0fb!important}
+.shortcut:nth-child(4) .shortcut-icon{background:linear-gradient(145deg,#f1f9ff,#e7f4ff)!important;color:#397fae!important;border-color:#e0edf7!important}
+.shortcut:nth-child(5) .shortcut-icon{background:linear-gradient(145deg,#f1faf5,#e6f5ec)!important;color:#3c805a!important;border-color:#dceee4!important}
+.shortcut-icon:after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.55);left:-5px;top:-5px}
+.shortcut.active .shortcut-icon{transform:translateY(-2px);box-shadow:0 7px 18px rgba(92,53,72,.08)!important}
+.shortcut.active b{font-weight:800!important}
+
+/* Daily question becomes the visual anchor — editorial, not loud */
+.daily-card{
+  position:relative!important;overflow:hidden!important;
+  min-height:122px!important;
+  padding:18px 18px 18px 118px!important;
+  border:1px solid #f1dce5!important;
+  background:
+    linear-gradient(100deg,rgba(255,255,255,.12),rgba(255,255,255,.96) 46%),
+    linear-gradient(135deg,#fff1f6 0%,#f8efff 52%,#fff7ed 100%)!important;
+  color:var(--e-ink)!important;
+  box-shadow:0 10px 26px rgba(110,61,82,.07)!important;
+}
+.daily-card:before{
+  display:block!important;content:''!important;position:absolute!important;
+  width:150px!important;height:122px!important;left:-12px!important;bottom:-9px!important;top:auto!important;right:auto!important;
+  border-radius:0!important;background:url('/assets/illustrations/community-wow.svg') left bottom/150px auto no-repeat!important;
+  opacity:.26!important;filter:saturate(.85)!important
+}
+.daily-card:after{
+  display:block!important;content:'✦'!important;position:absolute!important;left:95px!important;top:14px!important;
+  width:auto!important;height:auto!important;background:transparent!important;border-radius:0!important;
+  color:#e7a05e!important;font-size:16px!important;opacity:.8!important
+}
+.daily-label{color:var(--e-pink)!important;font-weight:850!important}
+.daily-card strong{color:var(--e-ink)!important;font-size:14.5px!important}
+.daily-card small{color:#8b7f87!important}
+.daily-card>.v-icon{color:#a58d98!important}
+
+/* Composer: soft editorial stationery */
+.composer-card{
+  position:relative;overflow:hidden;
+  border-color:#eee5ea!important;
+  box-shadow:0 8px 24px rgba(50,34,43,.045)!important;
+}
+.composer-card:before{content:'';position:absolute;right:0;left:0;top:0;height:3px;background:linear-gradient(90deg,#f0b4c7,var(--e-pink),#bdaef1);opacity:.75}
+.composer-copy .kicker{color:var(--e-pink)!important}
+.composer-card textarea{background:linear-gradient(180deg,#fff,#fffcfd)!important;border-color:#ece4e9!important}
+.primary-btn,.primary-btn.compact{
+  background:linear-gradient(135deg,#e33874,#cf285f)!important;
+  box-shadow:0 7px 16px rgba(211,43,98,.14)!important
+}
+.text-icon-btn{background:#fff9fb!important;border-color:#efe4e9!important;color:#7e6570!important}
+
+/* Feed cards get very light category-like color rhythm */
+.post-card{position:relative;overflow:hidden;border-color:#ece7eb!important;box-shadow:0 8px 22px rgba(42,31,37,.045)!important}
+.post-card:before{content:'';position:absolute;top:0;right:0;left:0;height:2px;background:linear-gradient(90deg,#f6c9d7,#eaa7c0,#d8cdf6);opacity:.65}
+.feed .post-card:nth-child(3n+2):before{background:linear-gradient(90deg,#f3dcb8,#f1c4d2,#d8cdf6)}
+.feed .post-card:nth-child(3n):before{background:linear-gradient(90deg,#cae8d8,#cfe3f3,#ead4ee)}
+.mini-avatar{background:linear-gradient(145deg,#fff3f7,#f4effd)!important;color:#8e526c!important;border-color:#efe3e8!important}
+.post-tag{background:#fff9fb!important;border-color:#f0e5ea!important;color:#926578!important}
+.reaction-btn{background:#fff!important;transition:background .15s,border-color .15s,transform .15s}
+.reaction-btn.active{background:linear-gradient(135deg,#fff0f5,#f6efff)!important;color:var(--e-pink)!important;border-color:#efcad7!important}
+
+/* Self section — a small graphic title strip rather than a huge hero */
+#selfView>.page-title,#marketView>.page-title{
+  position:relative;overflow:hidden;min-height:96px;padding:17px 18px!important;margin:4px 0 14px!important;
+  border:1px solid var(--e-line);border-radius:17px;background:#fff;box-shadow:0 8px 22px rgba(49,35,42,.04)
+}
+#selfView>.page-title{padding-left:118px!important;background:linear-gradient(120deg,#fff 40%,#f7f1ff 72%,#fff1f5)!important}
+#selfView>.page-title:after{
+  content:'';position:absolute;left:-8px;bottom:-19px;width:130px;height:125px;
+  background:url('/assets/illustrations/self-wow.svg') center/contain no-repeat;opacity:.30
+}
+#marketView>.page-title{padding-left:122px!important;background:linear-gradient(120deg,#fff 38%,#fff3f6 70%,#fff6ea)!important}
+#marketView>.page-title:after{
+  content:'';position:absolute;left:-4px;bottom:-20px;width:138px;height:130px;
+  background:url('/assets/illustrations/market-wow.svg') center/contain no-repeat;opacity:.29
+}
+#selfView>.page-title .kicker,#marketView>.page-title .kicker{color:var(--e-pink)!important}
+#selfView>.page-title h2,#marketView>.page-title h2{position:relative;z-index:1;font-size:21px!important}
+.mood-card,.period-card{border-color:#ebe6ea!important;box-shadow:0 8px 22px rgba(48,34,41,.045)!important}
+.plant-wrap{background:linear-gradient(145deg,#edf8f2,#f5fbf8)!important}
+.mood-options button:nth-child(1){background:#f9f3ff!important}
+.mood-options button:nth-child(2){background:#f4f7ff!important}
+.mood-options button:nth-child(3){background:#fafafa!important}
+.mood-options button:nth-child(4){background:#f2faf5!important}
+.mood-options button:nth-child(5){background:#fff5e9!important}
+.mood-options button.selected{border-color:#e9b8ca!important;box-shadow:inset 0 0 0 1px rgba(217,47,104,.05)!important}
+.period-summary div:nth-child(1){background:#fff3f7!important}.period-summary div:nth-child(2){background:#f5f2ff!important}.period-summary div:nth-child(3){background:#f2f9f5!important}
+
+/* Market: warmer merchandising, still product-first */
+.search-box{background:rgba(255,255,255,.96)!important;border-color:#ebe5e9!important;box-shadow:0 6px 18px rgba(48,34,41,.035)!important}
+.category,.store-switch button{background:#fff!important;border-color:#ebe5e9!important}
+.category.active,.store-switch button.active{
+  background:linear-gradient(135deg,#27232a,#3c333b)!important;color:#fff!important;border-color:#302b31!important
+}
+.product-card{border-color:#ebe6e9!important;box-shadow:0 8px 20px rgba(43,31,37,.04)!important;transition:transform .18s ease,box-shadow .18s ease}
+.live-product-card .market-product-photo,.product-image{background:radial-gradient(circle at 50% 32%,#fff 0,#fbf8fa 48%,#f6f1f4 100%)!important}
+.market-store-badge{background:rgba(255,255,255,.9)!important;border:1px solid rgba(232,224,230,.85);backdrop-filter:blur(8px)}
+.market-store-badge.vesta{color:#c32e63!important}.market-store-badge.cutella{color:#6e55b1!important}
+.market-sale-badge{background:linear-gradient(135deg,#e73a76,#cf285f)!important}
+.market-product-action:not(.secondary){background:linear-gradient(135deg,#fff4f8,#fff)!important;color:var(--e-pink)!important;border-color:#efcbd7!important}
+.market-product-action.secondary{background:#fff!important}
+.market-cart-bar{background:rgba(31,28,33,.96)!important;border-color:#3a343b!important;box-shadow:0 14px 35px rgba(25,19,22,.16)!important}
+
+/* Profile & membership: visual value without a giant illustration */
+.profile-card{position:relative;overflow:hidden;background:linear-gradient(120deg,#fff,#fff7fa 55%,#f7f2ff)!important;border-color:#eee5ea!important;box-shadow:0 8px 22px rgba(48,34,41,.045)!important}
+.profile-card:after{content:'✦';position:absolute;left:18px;top:14px;color:#d9b36c;font-size:18px;opacity:.85}
+.membership-box{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#fff 0%,#fff8fa 48%,#f7f2ff 100%)!important;
+  border-color:#eddfe6!important;box-shadow:0 10px 26px rgba(70,42,55,.055)!important
+}
+.membership-box:before{content:'';position:absolute;width:145px;height:145px;border-radius:50%;left:-78px;top:-78px;background:radial-gradient(circle,#f1bfd1 0%,rgba(241,191,209,0) 70%);opacity:.42}
+.membership-head,.membership-box>.muted,.pay-plans,.payment-note{position:relative;z-index:1}
+.pay-plans button{background:rgba(255,255,255,.92)!important;border-color:#ebe2e7!important;transition:transform .15s,border-color .15s!important}
+.pay-plans .recommended{background:linear-gradient(135deg,#fff0f5,#fbf5ff)!important;border-color:#edbfd0!important;box-shadow:0 6px 16px rgba(215,54,108,.07)!important}
+.pay-plans .recommended em{background:var(--e-pink)!important;color:#fff!important}
+.payment-note{background:rgba(255,255,255,.72)!important;border:1px solid #ede5e9!important;color:#7f757b!important}
+.profile-menu{overflow:hidden;border:1px solid #ebe6ea!important;border-radius:15px;background:#fff}
+.profile-menu button{border:0!important;border-bottom:1px solid #f0ecef!important;background:#fff!important}
+.profile-menu button:last-child{border-bottom:0!important}
+
+/* Bottom navigation: subtle floating active state */
+.bottom-nav{background:rgba(255,255,255,.96)!important;border-color:#e9e4e8!important;box-shadow:0 -8px 26px rgba(39,28,34,.045)!important}
+.bottom-nav button.active .v-icon{filter:drop-shadow(0 3px 5px rgba(217,47,104,.16))}
+.bottom-nav button.active:before{content:'';position:absolute;width:36px;height:30px;border-radius:12px;background:linear-gradient(145deg,#fff0f5,#f7f0ff);z-index:-1;top:3px}
+.bottom-nav button.active{isolation:isolate}
+
+/* Onboarding keeps the same language */
+.onboarding-card{position:relative;overflow:hidden;border-color:#ece5e9!important;background:linear-gradient(145deg,#fff,#fffbfd)!important}
+.intro-card:before,.trial-card:before{content:'';position:absolute;left:-30px;bottom:-38px;width:150px;height:150px;background:url('/assets/illustrations/gate-wow.svg') center/contain no-repeat;opacity:.10;pointer-events:none}
+
+@media(hover:hover){
+  .shortcut:hover .shortcut-icon{transform:translateY(-2px)}
+  .product-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(43,31,37,.07)!important}
+  .pay-plans button:hover{transform:translateY(-1px);border-color:#dfcbd4!important}
+}
+
+@media(max-width:390px){
+  .daily-card{padding-left:92px!important}
+  .daily-card:before{width:122px!important;background-size:122px auto!important;left:-20px!important;opacity:.23!important}
+  .daily-card:after{left:72px!important}
+  #selfView>.page-title,#marketView>.page-title{padding-left:98px!important;min-height:88px}
+  #selfView>.page-title:after,#marketView>.page-title:after{width:112px;height:110px;opacity:.25}
+}
+
+@media(min-width:760px){
+  .daily-card{padding-left:150px!important;min-height:130px!important}
+  .daily-card:before{width:185px!important;height:145px!important;background-size:180px auto!important;opacity:.28!important}
+  #selfView>.page-title,#marketView>.page-title{min-height:112px;padding-left:170px!important}
+  #selfView>.page-title:after,#marketView>.page-title:after{width:180px;height:160px;opacity:.28}
+}
