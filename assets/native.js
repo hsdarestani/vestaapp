@@ -1,4 +1,23 @@
 (() => {
+  const VISUAL_BUILD='20260905-1810';
+  function ensureVisualLayers(){
+    const add=(href,key)=>{if(document.querySelector(`link[data-${key}]`))return;const l=document.createElement('link');l.rel='stylesheet';l.href=href;l.setAttribute(`data-${key}`,'1');document.head.appendChild(l)};
+    add(`/assets/minimal-v5.css?v=${VISUAL_BUILD}`,'vestaland-minimal');
+    add(`/assets/editorial-v6.css?v=${VISUAL_BUILD}`,'vestaland-editorial');
+  }
+  function neutralizePaymentCopy(root=document){
+    const nodes=root.querySelectorAll?.('.payment-note,.market-checkout-form,.membership-box,.modal-sheet')||[];
+    nodes.forEach(el=>{
+      el.querySelectorAll('*').forEach(n=>{
+        if(n.children.length)return;
+        const t=n.textContent||'';
+        if(/هامون[‌\s-]*(کلود)?/i.test(t)) n.textContent=t.replace(/هامون[‌\s-]*کلود/gi,'درگاه امن').replace(/هامون/gi,'درگاه امن');
+      });
+      if(el.children.length===0&&/هامون[‌\s-]*(کلود)?/i.test(el.textContent||'')) el.textContent=(el.textContent||'').replace(/هامون[‌\s-]*کلود/gi,'درگاه امن').replace(/هامون/gi,'درگاه امن');
+    });
+  }
+  ensureVisualLayers();
+
   const paths={
     heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/>',
     'messages-square':'<path d="M7 8h10M7 12h6"/><path d="M5 18l-3 3v-4a7 7 0 0 1-1-3.5C1 9.36 4.58 6 9 6h6c4.42 0 8 3.36 8 7.5S19.42 21 15 21H9a8.9 8.9 0 0 1-4-.9"/>',
@@ -39,6 +58,6 @@
   async function confirmPayment(){const p=new URLSearchParams(location.search),status=p.get('payment');if(!status)return;const receipt=p.get('receipt')||'',intent=p.get('intent')||'';if(status!=='success'){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.('پرداخت انجام نشد. مبلغی از حسابت کم نشده.'),350);return}const token=localStorage.getItem('vestaland:token')||'';if(!token||!receipt||!intent){history.replaceState({},'',location.pathname);return}try{const r=await fetch('/api/payments/confirm',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({receipt,intent})}),d=await r.json();if(!r.ok)throw new Error(d.error||'تأیید پرداخت انجام نشد.');localStorage.setItem('vestaland:plan',d.user.plan);location.replace('/?payment_done=1')}catch(err){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.(err.message),350)}}
   function paymentDoneToast(){const p=new URLSearchParams(location.search);if(p.get('payment_done')==='1'){history.replaceState({},'',location.pathname);setTimeout(()=>window.toast?.('پرداخت موفق بود؛ اشتراکت فعال شد ✓'),450)}}
   document.addEventListener('click',e=>{const p=e.target.closest('[data-pay-plan]');if(p){e.preventDefault();startPayment(p.dataset.payPlan,p)}});
-  const observer=new MutationObserver(()=>{upgradeProducts();upgradeMedia();renderIcons()});
-  document.addEventListener('DOMContentLoaded',()=>{renderIcons();upgradeProducts();upgradeMedia();loadMarketAssets();confirmPayment();paymentDoneToast();observer.observe(document.body,{subtree:true,childList:true})});
+  const observer=new MutationObserver(()=>{upgradeProducts();upgradeMedia();renderIcons();neutralizePaymentCopy()});
+  document.addEventListener('DOMContentLoaded',()=>{renderIcons();upgradeProducts();upgradeMedia();loadMarketAssets();neutralizePaymentCopy();confirmPayment();paymentDoneToast();observer.observe(document.body,{subtree:true,childList:true,characterData:true})});
 })();
