@@ -98,7 +98,13 @@ block='''    # BEGIN VESTAAPP ISOLATED ROUTING
   server {
     listen 80;
     server_name app.vesta-cosmetics.ir;
-    return 301 https://app.vesta-cosmetics.ir$request_uri;
+    location ^~ /.well-known/acme-challenge/ {
+      proxy_pass http://vc-vestaapp-web:8080;
+      proxy_set_header Host $host;
+    }
+    location / {
+      return 301 https://app.vesta-cosmetics.ir$request_uri;
+    }
   }
   server {
     listen 443 ssl;
