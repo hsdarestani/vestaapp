@@ -71,29 +71,41 @@ cat "$BACKUPS/app-ssl-candidate.conf" > "$CONF"
 CHANGED=1
 docker exec vc-nginx nginx -t
 docker exec vc-nginx nginx -s reload
-# Reload is asynchronous: old nginx workers can briefly present the previous certificate.
+# Nginx reload is asynchronous. Existing workers may briefly serve the old
+# certificate, so verify ALL services together over several consecutive checks.
+sleep 3
 success=0
-for i in $(seq 1 35); do
-  if curl --noproxy '*' --fail --silent --show-error --max-time 5 --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/" -o /tmp/vestaapp-ssl-index.html 2>/tmp/vestaapp-ssl-err; then
-    if grep -q 'وستالند' /tmp/vestaapp-ssl-index.html; then
-      success=1
-      echo "TLS + app homepage verified on retry $i."
-      break
-    fi
+stable=0
+for i in $(seq 1 50); do
+  ready=1
+  if ! curl --noproxy '*' -fsS --max-time 5 --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/" -o /tmp/vestaapp-ssl-index.html 2>/dev/null; then
+    ready=0
+  elif ! grep -q 'وستالند' /tmp/vestaapp-ssl-index.html; then
+    ready=0
+  fi
+  if ! curl --noproxy '*' -fsS --max-time 5 --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/market/health" -o /tmp/vestaapp-api-health.json 2>/dev/null; then
+    ready=0
+  elif ! grep -q '"ok":true' /tmp/vestaapp-api-health.json; then
+    ready=0
+  fi
+  for h in vesta-cosmetics.ir cutellashop.ir; do
+    code="$(curl --noproxy '*' -sS --max-time 7 -o /dev/null --resolve "$h:443:127.0.0.1" -w '%{http_code}' "https://$h/" 2>/dev/null || true)"
+    if [[ ! "$code" =~ ^(200|301|302)$ ]]; then ready=0; fi
+  done
+  if [ "$ready" = 1 ]; then
+    stable=$((stable+1))
+    echo "App HTTPS, market API and both storefronts healthy ($stable/3 stable checks)."
+    if [ "$stable" -ge 3 ]; then success=1; break; fi
+  else
+    stable=0
+    echo "Nginx reload settling: verification attempt $i not yet stable."
   fi
   sleep 1
 done
 if [ "$success" != 1 ]; then
-  cat /tmp/vestaapp-ssl-err || true
-  echo "App TLS not ready within 35 seconds."
+  echo "TLS / app API / stores failed to stabilize after 50 checks."
   exit 1
 fi
-curl --noproxy '*' --fail --silent --show-error --max-time 15 --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/market/health" | grep -q '"ok":true'
-for h in vesta-cosmetics.ir cutellashop.ir; do
-  code="$(curl --noproxy '*' -sS --max-time 20 -o /dev/null --resolve "$h:443:127.0.0.1" -w '%{http_code}' "https://$h/")"
-  echo "$h HTTP=$code"
-  [[ "$code" =~ ^(200|301|302)$ ]] || exit 1
-done
 for c in vc-vesta vc-cutella vc-db-vesta vc-db-cutella; do
   docker inspect -f '{{.Name}} {{.State.Status}}' "$c"
 done
