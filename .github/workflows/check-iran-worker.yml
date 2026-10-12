@@ -1,9 +1,6 @@
 name: Check Iranian server access to Cloudflare AI
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/auth-subscriptions-ai-native-orders]
-    paths: ['.github/workflows/check-iran-worker.yml']
 permissions:
   contents: read
 jobs:
