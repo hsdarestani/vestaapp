@@ -71,6 +71,14 @@ jobs:
           docker exec vc-nginx stat -c 'CONTAINER nginx.conf inode=%i size=%s' /etc/nginx/nginx.conf
           echo '=== Nginx container port bindings ==='
           docker inspect --format '{{json .NetworkSettings.Ports}}' vc-nginx
+          echo '=== Certificate and key ready on host and mounted Nginx ==='
+          ls -l /srv/vestacutella/runtime/certs/app-vesta || true
+          docker exec vc-nginx sh -c 'ls -l /etc/nginx/certs/app-vesta/ || true'
+          echo '=== HTTPS proxy env set? ==='
+          env | grep -iE '^(http_proxy|https_proxy|all_proxy|no_proxy)=' | sed -E 's/=.+/=SET/' || true
+          echo '=== Direct SNI against loopback no proxy ==='
+          printf '\n' | openssl s_client -connect 127.0.0.1:443 -servername app.vesta-cosmetics.ir 2>/dev/null | openssl x509 -noout -subject -ext subjectAltName || true
+          curl --noproxy '*' -sSv --max-time 12 --resolve app.vesta-cosmetics.ir:443:127.0.0.1 https://app.vesta-cosmetics.ir/ -o /dev/null 2>&1 | grep -E 'SSL|subject|issuer|HTTP/|Connected|certificate' | tail -n 16 || true
           echo '=== Direct localhost route (ignore certificate temporarily) ==='
           curl -ksSI --max-time 10 --resolve app.vesta-cosmetics.ir:443:127.0.0.1 https://app.vesta-cosmetics.ir/ | head -n 10 || true
           curl -sSI --max-time 10 --resolve app.vesta-cosmetics.ir:80:127.0.0.1 http://app.vesta-cosmetics.ir/ | head -n 10 || true
