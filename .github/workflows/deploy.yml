@@ -2,10 +2,6 @@ name: Deploy isolated Vestaapp
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'deploy/launch-once-20261012.flag'
 
 permissions:
   contents: read
