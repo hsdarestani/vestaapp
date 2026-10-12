@@ -1,0 +1,53 @@
+name: Cloudflare credentials and access diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/auth-subscriptions-ai-native-orders]
+    paths: ['.github/workflows/check-cloudflare-token.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate token and Workers access without exposing keys
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
+          ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
+          CF_AI_WORKER_URL: ${{ secrets.CF_AI_WORKER_URL }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          token=os.getenv("CLOUDFLARE_API_TOKEN","")
+          account=os.getenv("CLOUDFLARE_ACCOUNT_ID","")
+          print("Zibal merchant provided:",bool(os.getenv("ZIBAL_MERCHANT")))
+          print("Cloudflare account ID provided:",bool(account))
+          print("Cloudflare API token provided:",bool(token))
+          print("Cloudflare AI shared secret length valid:",len(os.getenv("CF_AI_SHARED_SECRET",""))>=32)
+          print("Worker HTTPS URL provided:",os.getenv("CF_AI_WORKER_URL","").startswith("https://"))
+          if not token or not account:raise SystemExit("Missing Cloudflare credentials")
+          for name,url in [
+            ("Cloudflare token verify","https://api.cloudflare.com/client/v4/user/tokens/verify"),
+            ("Workers Scripts account access",f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/scripts"),
+            ("Specific Worker script metadata",f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/scripts/vestaland-ai")
+          ]:
+            req=urllib.request.Request(url,headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+            try:
+              with urllib.request.urlopen(req,timeout=18) as r:
+                raw=r.read(120000); status=r.status
+            except urllib.error.HTTPError as e:
+              status=e.code;raw=e.read(120000)
+            except Exception as e:
+              print(name+": unable to contact API ("+type(e).__name__+")");continue
+            try:
+              j=json.loads(raw)
+              errors=[str(x.get("code","unknown")) for x in (j.get("errors") or []) if isinstance(x,dict)]
+              success=j.get("success") if isinstance(j,dict) else None
+            except Exception:
+              errors=[];success=False
+            print(name+": HTTP "+str(status)+", success="+str(success)+", error codes="+",".join(errors[:6]))
+          PY
