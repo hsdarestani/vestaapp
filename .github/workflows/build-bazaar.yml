@@ -2,6 +2,7 @@ name: Build CafeBazaar Android
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     paths:
       - 'android/**'
