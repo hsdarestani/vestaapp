@@ -45,9 +45,14 @@ jobs:
               print(name+": unable to contact API ("+type(e).__name__+")");continue
             try:
               j=json.loads(raw)
-              errors=[str(x.get("code","unknown")) for x in (j.get("errors") or []) if isinstance(x,dict)]
+              errors=[str(x.get("code","unknown"))+":"+str(x.get("message",""))[:100] for x in (j.get("errors") or []) if isinstance(x,dict)]
               success=j.get("success") if isinstance(j,dict) else None
+              if name=="Workers Scripts account access" and success:
+                result=j.get("result") or []
+                scripts=result.get("scripts",[]) if isinstance(result,dict) else result
+                scripts=scripts if isinstance(scripts,list) else []
+                print("Worker vestaland-ai already exists:",any((x or {}).get("id")=="vestaland-ai" for x in scripts if isinstance(x,dict)))
             except Exception:
               errors=[];success=False
-            print(name+": HTTP "+str(status)+", success="+str(success)+", error codes="+",".join(errors[:6]))
+            print(name+": HTTP "+str(status)+", success="+str(success)+", error summary="+",".join(errors[:6]))
           PY
