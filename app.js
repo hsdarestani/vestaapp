@@ -25,7 +25,7 @@ function loadProfile(){
     if(typeof p.nickname==='string')result.nickname=p.nickname.slice(0,28);
     if(avatarChoices.includes(p.avatar))result.avatar=p.avatar;
     if(styleChoices.some(x=>x[0]===p.style))result.style=p.style;
-    if(Array.isArray(p.favoriteColors))result.favoriteColors=p.favoriteColors.filter(x=>Object.hasOwn(colors,x)).slice(0,5);
+    if(Array.isArray(p.favoriteColors))result.favoriteColors=p.favoriteColors.filter(x=>Object.hasOwn(colors,x));
     if(clothingSizes.includes(p.size))result.size=p.size;
     if(shoeSizes.includes(p.shoeSize))result.shoeSize=p.shoeSize;
     if(skinChoices.some(x=>x[0]===p.skin))result.skin=p.skin;
@@ -101,7 +101,7 @@ function submitProfile(e){
    nickname:String(fd.get('nickname')||'').trim().slice(0,28),
    avatar:String(fd.get('avatar')||'🎀'),
    style:String(fd.get('style')||'casual'),
-   favoriteColors:fd.getAll('favoriteColors').map(String).filter(x=>Object.hasOwn(colors,x)).slice(0,5),
+   favoriteColors:fd.getAll('favoriteColors').map(String).filter(x=>Object.hasOwn(colors,x)),
    size:String(fd.get('size')||'نامشخص'),
    shoeSize:String(fd.get('shoeSize')||'نامشخص'),
    skin:String(fd.get('skin')||'unknown'),
