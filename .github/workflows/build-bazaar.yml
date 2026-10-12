@@ -5,6 +5,11 @@ on:
   push:
     paths:
       - 'android/**'
+      - 'app.js'
+      - 'index.html'
+      - 'styles.css'
+      - 'manifest.webmanifest'
+      - 'sw.js'
       - '.github/workflows/build-bazaar.yml'
 
 jobs:
@@ -83,12 +88,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p bazaar-output
-          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.0.1-test.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.1.0-test.apk
           if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.1-cafebazaar.apk
-            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-cafebazaar.aab
+            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.1.0-cafebazaar.apk
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.1.0-cafebazaar.aab
           else
-            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-unsigned.aab
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.1.0-unsigned.aab
           fi
           sha256sum bazaar-output/* > bazaar-output/SHA256SUMS.txt
 
