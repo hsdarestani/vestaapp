@@ -60,6 +60,12 @@ jobs:
           docker exec vc-nginx sh -c 'grep -n -A24 -B2 "BEGIN VESTAAPP" /etc/nginx/nginx.conf' || true
           echo '=== Active parsed Nginx configuration ==='
           docker exec vc-nginx sh -c 'nginx -T 2>&1 | grep -A24 -B2 "BEGIN VESTAAPP"' || true
+          echo '=== Actual Nginx container mounts ==='
+          docker inspect --format '{{range .Mounts}}{{println .Source " -> " .Destination}}{{end}}' vc-nginx
+          echo '=== Host candidate config files ==='
+          for f in /srv/vestacutella/repo/infra/nginx.conf /srv/vestacutella/infra/nginx.conf /srv/vestacutella/runtime/nginx.conf; do
+            if [ -f "$f" ]; then ls -li "$f"; grep -c "BEGIN VESTAAPP" "$f" || true; fi
+          done
           echo '=== Nginx container port bindings ==='
           docker inspect --format '{{json .NetworkSettings.Ports}}' vc-nginx
           echo '=== Direct localhost route (ignore certificate temporarily) ==='
