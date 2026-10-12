@@ -1,0 +1,66 @@
+name: Deploy Vestaapp profile assets only
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/profile-release-once.flag'
+permissions:
+  contents: read
+concurrency:
+  group: vestaapp-static-assets
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate profile build and deploy scope
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --test tests/profile.test.cjs
+          bash -n deploy/deploy-profile-assets.sh
+          grep -q '20261012-profile2' index.html
+          grep -q 'vestaland-personal-profile-v2' sw.js
+          grep -q 'id="profileForm"' app.js
+          [[ -n "${HOST:-}" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          [[ "${HOST##*@}" == "193.177.242.64" ]]
+      - name: Bundle only safe static files
+        run: tar -czf "$RUNNER_TEMP/vestaapp-profile-assets.tar.gz" index.html app.js styles.css sw.js
+      - name: Install SSH helper
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Replace only Vestaapp static files
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          opts=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" scp "${opts[@]}" "$RUNNER_TEMP/vestaapp-profile-assets.tar.gz" "$target:/tmp/vestaapp-profile-assets.tar.gz"
+          sshpass -p "$PASS" ssh "${opts[@]}" "$target" 'bash -s' < deploy/deploy-profile-assets.sh
+      - name: Verify public web and existing stores
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/vesta-index.html
+          grep -q '20261012-profile2' /tmp/vesta-index.html
+          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/app.js?v=20261012-profile2' -o /tmp/vesta-app.js
+          grep -q 'profileForm' /tmp/vesta-app.js
+          for site in cutellashop.ir vesta-cosmetics.ir; do
+            code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://$site/")"
+            echo "$site HTTP $code"
+            [[ "$code" == '200' || "$code" == '301' || "$code" == '302' ]]
+          done

@@ -17,6 +17,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check app.js
+          node --test tests/profile.test.cjs
           python3 -m py_compile backend/market_server.py
           bash -n deploy/rollout.sh
           python3 -m json.tool manifest.webmanifest >/dev/null
