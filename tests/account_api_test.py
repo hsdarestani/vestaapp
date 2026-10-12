@@ -1,5 +1,7 @@
 import importlib.util
 import os
+import sys
+sys.path.insert(0,os.path.abspath('backend'))
 import tempfile
 import unittest
 from unittest.mock import patch
