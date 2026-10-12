@@ -35,7 +35,7 @@ async function api(path,opts={}){
  }catch(e){if(e.name==='AbortError')throw new Error('زمان پاسخ سرور طولانی شد؛ دوباره تلاش کن.');throw e}
  finally{clearTimeout(timeout)}
 }
-function allowed(){return !!(S.user&&S.user.active)}
+function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
 function open(kind){
@@ -241,6 +241,21 @@ async function logout(){
  try{await api('logout',{body:{logout:true}})}catch{}
  S.user=null;S.token='';localStorage.removeItem(sessionKey);close();notify('از حساب خارج شدی');open('login');
 }
+// Trial and paid access enforced by the server for all protected endpoints;
+// this capture-phase overlay also stops navigating protected UI before login.
+document.addEventListener('click',event=>{
+ if(!authReady()||allowed()||event.target.closest('#commerceLayer'))return;
+ const target=event.target.closest('button,a');if(!target)return;
+ if(target.hasAttribute('data-commerce-open')||target.hasAttribute('data-commerce-close'))return;
+ const path=target.dataset.route;
+ const isAppArea=target.closest('#appContent,.bottom-nav');
+ if(!isAppArea)return;
+ if(path==='me')return;
+ if(path==='home'&&!S.user)return;
+ if(path||target.hasAttribute('data-add')||target.hasAttribute('data-addcart')||target.hasAttribute('data-filter')||target.hasAttribute('data-action')){
+   event.preventDefault();event.stopImmediatePropagation();open(S.user?'plans':'login');
+ }
+},true);
 window.VestalandCommerce={
  addToCart(product){
   if(!product||!['vesta','cutella'].includes(product.store))return;
