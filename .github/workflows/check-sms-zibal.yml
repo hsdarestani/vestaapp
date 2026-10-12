@@ -1,9 +1,6 @@
 name: Vestaland SMS and Zibal credential preflight (read only)
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/auth-subscriptions-ai-native-orders]
-    paths: ['.github/workflows/check-sms-zibal.yml']
 permissions:
   contents: read
 jobs:
