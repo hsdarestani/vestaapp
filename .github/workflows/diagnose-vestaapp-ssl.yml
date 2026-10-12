@@ -1,0 +1,57 @@
+name: Diagnose Vestaapp SSL (read only)
+on:
+  push:
+    paths:
+      - .github/workflows/diagnose-vestaapp-ssl.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ssl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Inspect public TLS certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo | openssl s_client -connect 193.177.242.64:443 -servername app.vesta-cosmetics.ir -showcerts 2>/dev/null | openssl x509 -noout -subject -issuer -ext subjectAltName || true
+          echo '=== TLS hostname verification ==='
+          curl -sSIL --max-time 12 https://app.vesta-cosmetics.ir/ 2>&1 | tail -n 15 || true
+          echo '=== HTTP challenge path ==='
+          curl -sSI --max-time 12 http://app.vesta-cosmetics.ir/.well-known/acme-challenge/probe | head -n 12 || true
+      - name: Install SSH helper
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Inspect origin cert and ACME readiness
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ -n "${HOST:-}" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          remote="${HOST##*@}"; test "$(getent ahostsv4 "$remote" | awk 'NR==1{print $1}')" = '193.177.242.64'
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$target" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo '=== Origin cert names ==='
+          for src in app-vesta vesta; do
+            crt="/srv/vestacutella/runtime/certs/$src/fullchain.pem"
+            if [ -s "$crt" ]; then
+              echo "Certificate folder: $src"
+              openssl x509 -in "$crt" -noout -subject -issuer -dates -ext subjectAltName
+              openssl x509 -in "$crt" -noout -checkhost app.vesta-cosmetics.ir || true
+            fi
+          done
+          echo '=== ACME tool ==='
+          if command -v certbot >/dev/null; then certbot --version; else echo 'certbot not installed'; fi
+          echo '=== Existing app web container ==='
+          docker inspect -f '{{.Name}} {{.State.Status}}' vc-vestaapp-web vc-vestaapp-market
+          echo '=== Nginx and webroot ==='
+          docker exec vc-nginx nginx -t
+          ls -ld /srv/vestaapp/current /srv/vestaapp/current/public
+          REMOTE
