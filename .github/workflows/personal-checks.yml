@@ -1,0 +1,28 @@
+name: Personal Vestaapp checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static validation
+        run: |
+          set -euo pipefail
+          node --check app.js
+          python3 -m py_compile backend/market_server.py
+          bash -n deploy/rollout.sh
+          python3 -m json.tool manifest.webmanifest >/dev/null
+          docker compose -f deploy/compose.yml config -q
+          grep -q 'id="appContent"' index.html
+          ! grep -q 'id="hangoutView"' index.html
+          ! grep -q 'assets/community-v2.js' index.html
+          grep -q 'app.vesta-cosmetics.ir' android/app/src/main/java/ir/vestaland/app/MainActivity.java
+          grep -q "versionCode 3" android/app/build.gradle
