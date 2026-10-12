@@ -1,10 +1,6 @@
 name: Deploy Vestaland Cloudflare AI
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/auth-subscriptions-ai-native-orders]
-    paths:
-      - '.github/workflows/deploy-ai.yml'
 permissions:
   contents: read
 concurrency:
