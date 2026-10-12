@@ -18,6 +18,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from calendar import monthrange
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -29,7 +30,7 @@ CF_WORKER_URL = os.getenv("CF_AI_WORKER_URL", "")
 CF_AI_SHARED_SECRET = os.getenv("CF_AI_SHARED_SECRET", "")
 PUBLIC_BASE = "https://app.vesta-cosmetics.ir"
 MARKET_URL = "http://vc-vestaapp-market:8766"
-PLANS = {"monthly": (199000, 30), "quarterly": (499000, 90)}
+PLANS = {"monthly": (199000, 1), "quarterly": (499000, 3)}
 MAX_BODY = 24000
 TRIAL_SECONDS = 7 * 86400
 SESSION_SECONDS = 30 * 86400
@@ -41,6 +42,13 @@ LOG = logging.getLogger("vestaland-account")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 def now(): return int(time.time())
+
+def add_months(timestamp,months):
+    d=datetime.fromtimestamp(timestamp,timezone.utc)
+    m=d.month-1+months
+    year=d.year+m//12
+    month=m%12+1
+    return int(d.replace(year=year,month=month,day=min(d.day,monthrange(year,month)[1])).timestamp())
 
 class Error(Exception):
     def __init__(self, message, status=400):
@@ -175,7 +183,9 @@ def verify_otp(phone,code,ip):
         row=c.execute("SELECT * FROM otp_codes WHERE phone=?",(phone,)).fetchone()
         if not row or row["expires_at"]<now() or row["tries"]>=5:raise Error("کد منقضی شده؛ کد جدید بگیر.",401)
         c.execute("UPDATE otp_codes SET tries=tries+1 WHERE phone=?",(phone,))
-        if not hmac.compare_digest(row["code_hash"],otp_digest(phone,code)):raise Error("کد ورود درست نیست.",401)
+        if not hmac.compare_digest(row["code_hash"],otp_digest(phone,code)):
+            c.commit()  # Wrong code MUST consume an attempt even though request returns HTTP 401.
+            raise Error("کد ورود درست نیست.",401)
         c.execute("DELETE FROM otp_codes WHERE phone=?",(phone,))
         user=c.execute("SELECT * FROM users WHERE phone=?",(phone,)).fetchone()
         if not user:
@@ -213,7 +223,7 @@ def logout(headers):
     return {"ok":True}
 
 def plans():
-    return {"ok":True,"trial_days":7,"plans":[{"id":k,"price_toman":v[0],"duration_days":v[1]} for k,v in PLANS.items()],
+    return {"ok":True,"trial_days":7,"plans":[{"id":k,"price_toman":v[0],"duration_months":v[1]} for k,v in PLANS.items()],
             "features":{"otp_enabled":bool(SMS_KEY and SMS_TEMPLATE and len(os.getenv("VESTALAND_OTP_PEPPER",""))>=32),
                         "subscriptions_enabled":bool(ZIBAL_MERCHANT),
                         "ai_enabled":bool(CF_WORKER_URL and CF_AI_SHARED_SECRET),
@@ -255,8 +265,8 @@ def verify_subscription(sub_id,returned_track=None):
             return False
         user=c.execute("SELECT paid_until,trial_until FROM users WHERE id=?",(row["user_id"],)).fetchone()
         base=max(now(),user["paid_until"],user["trial_until"])
-        duration=PLANS[row["plan"]][1]*86400
-        c.execute("UPDATE users SET paid_until=? WHERE id=?",(base+duration,row["user_id"]))
+        end=add_months(base,PLANS[row["plan"]][1])
+        c.execute("UPDATE users SET paid_until=? WHERE id=?",(end,row["user_id"]))
         c.execute("UPDATE subscriptions SET status='paid',verified_at=? WHERE id=?",(now(),sub_id))
         return True
 
