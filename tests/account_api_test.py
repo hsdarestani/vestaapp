@@ -104,6 +104,26 @@ class VestalandAccountTests(unittest.TestCase):
             with self.assertRaises(api.Error):api.ai_recommend(second,[],"help")
         with patch.object(api,"json_http",return_value={"ok":True,"suggestion":"کفش سفید."}):
             self.assertTrue(api.ai_recommend(second,[],"help")["ok"])
+    def test_live_payment_gateways_are_store_specific(self):
+        old=os.environ.get("APP_CHECKOUT_ENABLED")
+        os.environ["APP_CHECKOUT_ENABLED"]="1"
+        calls=[]
+        def internal(url,body=None,headers=None,timeout=20):
+            calls.append((url,body))
+            if url.endswith("/quote"):
+                return {"ok":True,"payment_methods":["wc_zibal"] if body["store"]=="vesta" else ["WC_ZPal"],"totals":{"total":199000}}
+            return {"ok":True,"order_id":9,"redirect_url":"https://cutellashop.ir/checkout/order-pay/9","status":"pending"}
+        try:
+            with patch.object(api,"json_http",side_effect=internal):
+                for store,expected in (("vesta","wc_zibal"),("cutella","WC_ZPal")):
+                    api.market_api("checkout",store,[{"id":12,"quantity":1}],{
+                      "first_name":"Sara","last_name":"Test","phone":"09123456789","city":"Tehran",
+                      "state":"THR","address_1":"Test address","postcode":"1234567890"})
+                    self.assertEqual(calls[-1][1]["payment_method"],expected)
+        finally:
+            if old is None:os.environ.pop("APP_CHECKOUT_ENABLED",None)
+            else:os.environ["APP_CHECKOUT_ENABLED"]=old
+
     def test_checkout_uses_own_wc_order_and_idempotency(self):
         user=self.create_user()
         call_count=0
