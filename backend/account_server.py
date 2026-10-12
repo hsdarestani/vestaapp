@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from calendar import monthrange
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import bazaar_verify
 
 DB_FILE = os.getenv("VESTALAND_DB_PATH", "/var/lib/vestaapp/accounts.db")
 SMS_KEY = os.getenv("SMSIR_API_KEY", "")
@@ -73,7 +74,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users(
             id INTEGER PRIMARY KEY, phone TEXT UNIQUE NOT NULL,
             created_at INTEGER NOT NULL, trial_until INTEGER NOT NULL,
-            paid_until INTEGER NOT NULL DEFAULT 0
+            paid_until INTEGER NOT NULL DEFAULT 0,
+            bazaar_until INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS otp_codes(
             phone TEXT PRIMARY KEY, code_hash TEXT NOT NULL,
@@ -96,6 +98,11 @@ def init_db():
             created_at INTEGER NOT NULL, verified_at INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_subscription_user ON subscriptions(user_id,created_at);
+        CREATE TABLE IF NOT EXISTS bazaar_receipts(
+            token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+            sku TEXT NOT NULL, expires_at INTEGER NOT NULL,
+            verified_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS ai_usage(
             user_id INTEGER NOT NULL, day TEXT NOT NULL,
             count INTEGER NOT NULL DEFAULT 0,
@@ -199,12 +206,12 @@ def verify_otp(phone,code,ip):
 
 def public_user(user):
     t=now()
-    paid=user["paid_until"]>t
+    paid=max(user["paid_until"],user["bazaar_until"])>t
     trial=user["trial_until"]>t
-    end=user["paid_until"] if paid else user["trial_until"]
+    end=max(user["paid_until"],user["bazaar_until"]) if paid else user["trial_until"]
     return {"id":user["id"],"phone":user["phone"],"active":paid or trial,
             "plan":"paid" if paid else ("trial" if trial else "expired"),
-            "trial_until":user["trial_until"],"paid_until":user["paid_until"],"expires_at":end}
+            "trial_until":user["trial_until"],"paid_until":max(user["paid_until"],user["bazaar_until"]),"expires_at":end}
 
 def authenticate(headers,active=False):
     auth=headers.get("Authorization","")
@@ -228,7 +235,8 @@ def plans():
             "features":{"otp_enabled":bool(SMS_KEY and SMS_TEMPLATE and len(os.getenv("VESTALAND_OTP_PEPPER",""))>=32),
                         "subscriptions_enabled":bool(ZIBAL_MERCHANT),
                         "ai_enabled":bool(CF_WORKER_URL and CF_AI_SHARED_SECRET),
-                        "store_checkout_enabled":os.getenv("APP_CHECKOUT_ENABLED","0")=="1"}}
+                        "store_checkout_enabled":os.getenv("APP_CHECKOUT_ENABLED","0")=="1",
+                        "bazaar_enabled":bazaar_verify.ready()}}
 
 def subscribe(user,plan):
     ensure_configs("ZIBAL_MERCHANT")
@@ -270,6 +278,29 @@ def verify_subscription(sub_id,returned_track=None):
         c.execute("UPDATE users SET paid_until=? WHERE id=?",(end,row["user_id"]))
         c.execute("UPDATE subscriptions SET status='paid',verified_at=? WHERE id=?",(now(),sub_id))
         return True
+
+def verify_bazaar_receipt(user,plan,purchase_token):
+    if not bazaar_verify.ready():raise Error("تأیید اشتراک کافه‌بازار هنوز فعال نشده است.",503)
+    try:receipt=bazaar_verify.validate(plan,purchase_token)
+    except bazaar_verify.BazaarError as e:
+        LOG.warning("Bazaar purchase verification failed: %s",type(e).__name__)
+        raise Error("تأیید اشتراک در بازار انجام نشد. کمی بعد دوباره تلاش کن.",422)
+    token_hash=digest(purchase_token)
+    with LOCK,conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        previous=c.execute("SELECT user_id FROM bazaar_receipts WHERE token_hash=?",(token_hash,)).fetchone()
+        if previous and previous["user_id"]!=user["id"]:
+            raise Error("این رسید قبلاً در حساب دیگری ثبت شده است.",409)
+        c.execute("""INSERT INTO bazaar_receipts(token_hash,user_id,sku,expires_at,verified_at)
+          VALUES(?,?,?,?,?) ON CONFLICT(token_hash) DO UPDATE SET expires_at=excluded.expires_at,
+          verified_at=excluded.verified_at""",
+          (token_hash,user["id"],receipt["sku"],receipt["expires_at"],now()))
+        last=c.execute("SELECT bazaar_until FROM users WHERE id=?",(user["id"],)).fetchone()
+        # Never shrink an existing separately paid Zibal subscription.
+        expiry=max(receipt["expires_at"],last["bazaar_until"])
+        c.execute("UPDATE users SET bazaar_until=? WHERE id=?",(expiry,user["id"]))
+    fresh=db_one("SELECT * FROM users WHERE id=?",(user["id"],))
+    return {"ok":True,"user":public_user(fresh),"bazaar_expires_at":receipt["expires_at"]}
 
 def subscription_status(user,pid):
     s=db_one("SELECT * FROM subscriptions WHERE id=? AND user_id=?",(pid,user["id"]))
@@ -466,6 +497,9 @@ class API(BaseHTTPRequestHandler):
         if path=="/api/account/otp/verify":
             return self.json(200,verify_otp(normalize_phone(data.get("phone")),str(data.get("code") or ""),self.ip()))
         if path=="/api/account/logout":return self.json(200,logout(self.headers))
+        if path=="/api/account/bazaar/verify":
+            user=authenticate(self.headers)
+            return self.json(200,verify_bazaar_receipt(user,str(data.get("plan") or ""),str(data.get("purchase_token") or "")))
         if path=="/api/account/subscription/start":
             return self.json(200,subscribe(authenticate(self.headers),str(data.get("plan") or "")))
         if path=="/api/account/ai/recommend":
