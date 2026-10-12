@@ -326,15 +326,25 @@ def clean_items(items):
 def market_api(kind,store,items,address=None):
     if os.getenv("APP_CHECKOUT_ENABLED","0")!="1":raise Error("خرید داخل اپ هنوز فعال نشده است.",503)
     payload={"store":valid_store(store),"items":clean_items(items)}
-    if kind=="checkout":
-        if not isinstance(address,dict):raise Error("آدرس معتبر نیست.")
-        needed=("first_name","last_name","phone","city","state","address_1","postcode")
-        a={k:str(address.get(k) or "").strip()[:160] for k in ("first_name","last_name","phone","city","state","address_1","address_2","postcode","email")}
-        if any(not a[k] for k in needed):raise Error("اطلاعات آدرس رو کامل وارد کن.")
-        a["country"]="IR"
-        payload["billing_address"]=a;payload["shipping_address"]=a
-        # We use the gateway configured by each WooCommerce store, never a custom app payment for product orders.
-    return json_http(MARKET_URL+"/api/market/"+kind,payload,timeout=35)
+    # Always ask the authoritative Woo Store API about current stock and payment methods.
+    quote=json_http(MARKET_URL+"/api/market/quote",payload,timeout=30)
+    if not isinstance(quote,dict) or not quote.get("ok"):
+        raise Error("استعلام فروشگاه معتبر نبود.",502)
+    gateways=[str(x) for x in (quote.get("payment_methods") or [])]
+    zibal=next((g for g in gateways if "zibal" in g.lower()),None)
+    if not zibal:raise Error("درگاه زیبال برای این فروشگاه در خرید درون اپ فعال نیست.",503)
+    if kind=="quote":return quote
+    if kind!="checkout":raise Error("عملیات نامعتبر است.",400)
+    if not isinstance(address,dict):raise Error("آدرس معتبر نیست.")
+    needed=("first_name","last_name","phone","city","state","address_1","postcode")
+    a={k:str(address.get(k) or "").strip()[:160] for k in ("first_name","last_name","phone","city","state","address_1","address_2","postcode","email")}
+    if any(not a[k] for k in needed):raise Error("اطلاعات آدرس رو کامل وارد کن.")
+    a["country"]="IR"
+    payload["billing_address"]=a;payload["shipping_address"]=a
+    payload["payment_method"]=zibal
+    # WooCommerce creates its own order, Zibal payment and on-site callbacks;
+    # never copy products into another table as the source of truth.
+    return json_http(MARKET_URL+"/api/market/checkout",payload,timeout=35)
 
 def checkout(user,store,items,address,request_id):
     if not re.fullmatch(r"[a-zA-Z0-9_-]{12,90}",str(request_id or "")):
