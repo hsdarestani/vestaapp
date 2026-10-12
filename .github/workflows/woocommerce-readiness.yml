@@ -1,0 +1,35 @@
+name: Native Woo checkout readiness (read only)
+on:
+  workflow_dispatch:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check both storefront Store APIs without creating orders
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          for domain in ('vesta-cosmetics.ir','cutellashop.ir'):
+              base='https://'+domain+'/wp-json/wc/store/v1/'
+              print('Store: '+domain)
+              for part in ('products?per_page=1','cart'):
+                  request=urllib.request.Request(base+part,headers={'User-Agent':'Vestaland-readonly-check/1.0','Accept':'application/json'})
+                  try:
+                      with urllib.request.urlopen(request,timeout=18) as res:
+                          raw=res.read(200000)
+                          j=json.loads(raw)
+                          print(' endpoint='+part,'HTTP='+str(res.status),'json='+type(j).__name__)
+                          if part=='cart':
+                              token=(res.headers.get('Cart-Token') or res.headers.get('cart-token') or '')
+                              print(' Cart-Token present='+str(bool(token)))
+                              if isinstance(j,dict):
+                                  print(' payment_methods='+json.dumps(j.get('payment_methods') or [],ensure_ascii=False))
+                                  print(' needs_shipping='+str(j.get('needs_shipping')))
+                  except Exception as e:
+                      print(' endpoint '+part+' NOT_READY '+type(e).__name__+' '+str(e)[:160])
+          PY
