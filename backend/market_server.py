@@ -10,7 +10,7 @@ STORES={
 }
 UA='Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Safari/537.36 VestalandMarket/2.1'
 SSL=ssl.create_default_context(); MAX_BODY=128*1024; MAX_IMAGE=10*1024*1024
-CACHE={}; LOCK=threading.RLock(); IMG_DIR='/var/lib/vestaland/market-images'
+CACHE={}; LOCK=threading.RLock(); IMG_DIR=os.environ.get('VESTALAND_IMAGE_DIR','/var/lib/vestaland/market-images')
 os.makedirs(IMG_DIR,exist_ok=True)
 ALLOWED={urllib.parse.urlparse(v['base']).hostname for v in STORES.values()}
 

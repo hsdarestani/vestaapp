@@ -2,9 +2,15 @@ name: Build CafeBazaar Android
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     paths:
       - 'android/**'
+      - 'app.js'
+      - 'index.html'
+      - 'styles.css'
+      - 'manifest.webmanifest'
+      - 'sw.js'
       - '.github/workflows/build-bazaar.yml'
 
 jobs:
@@ -23,11 +29,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android 16 SDK
-        run: yes | sdkmanager --licenses >/dev/null && sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Prepare Android 16 SDK
+        shell: bash
+        run: |
+          set -e
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | sort -Vr | head -n 1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$sdk_root" --install 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -83,20 +93,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p bazaar-output
-          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.0.1-test.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.1.0-test.apk
           if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.0.1-cafebazaar.apk
-            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-cafebazaar.aab
+            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.1.0-cafebazaar.apk
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.1.0-cafebazaar.aab
           else
-            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.0.1-unsigned.aab
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.1.0-unsigned.aab
           fi
           sha256sum bazaar-output/* > bazaar-output/SHA256SUMS.txt
 
       - name: Upload CafeBazaar package
         uses: actions/upload-artifact@v4
         with:
-          name: vestaland-cafebazaar-1.0.1
+          name: vestaland-cafebazaar-1.1.0
           path: bazaar-output/
           retention-days: 30
 
-# build-refresh: 2026-09-05T18:10+03:30
+# build-refresh: 2026-10-12 — new personal wardrobe app

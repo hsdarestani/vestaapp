@@ -1,12 +1,14 @@
 package ir.vestaland.app;
 
 import android.content.Intent;
+import android.app.Activity;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -14,6 +16,9 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.work.WorkManager;
 
 import org.json.JSONObject;
 
@@ -26,18 +31,27 @@ import ir.cafebazaar.poolakey.request.PurchaseRequest;
 import kotlin.Unit;
 
 public class MainActivity extends ComponentActivity {
-    private static final String APP_URL = "https://vestaland.smarbiz.sbs/";
+    private static final String APP_URL = "https://app.vesta-cosmetics.ir/";
     private static final String SKU_1M = "vestaland_sub_1m";
     private static final String SKU_3M = "vestaland_sub_3m";
     private static final String SKU_6M = "vestaland_sub_6m";
 
     private WebView webView;
+    private ValueCallback<Uri[]> pendingFileChooser;
+    private final ActivityResultLauncher<Intent> filePicker = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (pendingFileChooser != null) {
+                    pendingFileChooser.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData()));
+                    pendingFileChooser = null;
+                }
+            }
+    );
     private volatile boolean marketPaymentActive = false;
     private Payment bazaarPayment;
     private Connection bazaarConnection;
 
     private boolean isVestaland(String host) {
-        return host.equals("vestaland.smarbiz.sbs") || host.endsWith(".vestaland.smarbiz.sbs");
+        return host.equals("app.vesta-cosmetics.ir") || host.equals("vestaland.smarbiz.sbs");
     }
 
     private boolean isMarketStore(String host) {
@@ -150,8 +164,9 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WorkManager.getInstance(this).cancelUniqueWork("vestaland-community-notifications");
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(247, 247, 248));
+        webView.setBackgroundColor(Color.rgb(255, 245, 250));
         setContentView(webView);
 
         WebSettings settings = webView.getSettings();
@@ -169,7 +184,22 @@ public class MainActivity extends ComponentActivity {
         webView.addJavascriptInterface(new BazaarBridge(), "BazaarBridge");
         initBazaarBilling();
 
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
+                pendingFileChooser = filePathCallback;
+                try {
+                    filePicker.launch(fileChooserParams.createIntent());
+                    return true;
+                } catch (Exception ignored) {
+                    pendingFileChooser = null;
+                    filePathCallback.onReceiveValue(null);
+                    Toast.makeText(MainActivity.this, "انتخاب عکس روی این دستگاه در دسترس نیست.", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -247,6 +277,7 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onDestroy() {
+        if (pendingFileChooser != null) { pendingFileChooser.onReceiveValue(null); pendingFileChooser = null; }
         if (bazaarConnection != null) bazaarConnection.disconnect();
         if (webView != null) {
             webView.stopLoading();

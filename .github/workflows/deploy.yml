@@ -1,121 +1,64 @@
-name: Deploy Vestaland production
+name: Deploy isolated Vestaapp
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: vestaland-production
-  cancel-in-progress: true
+  group: vestaapp-only-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate app files
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Validate release files and script
         run: |
           set -euo pipefail
-          test -s index.html
-          test -s styles.css
-          test -s desktop-enhancements.css
-          test -s app.js
-          test -s assets/native.js
-          test -s assets/market-live.js
-          test -s assets/market-live.css
-          test -s assets/market-native-checkout.js
-          test -s assets/market-payment.js
-          test -s assets/community-v2.js
-          test -s assets/community-v2.css
-          test -s assets/jalali-calendar.js
-          test -s assets/production-hardening.js
-          test -s backend/core_server.py
-          test -s backend/server.py
-          test -s backend/server_v3.py
-          test -s backend/market_server.py
-          test -s backend/market_payment_server.py
-          test -s backend/smoke_test.py
-          test -s backend/smoke_test_v2.py
-          test -s backend/smoke_test_v3.py
-          test -s scripts/deploy-production.sh
-          grep -q "وستالند" index.html
+          for x in index.html styles.css app.js sw.js icon.svg manifest.webmanifest deploy/rollout.sh deploy/compose.yml deploy/app-nginx.conf deploy/market.Dockerfile backend/market_server.py; do
+            test -s "$x"
+          done
           node --check app.js
-          node --check assets/native.js
-          node --check assets/market-live.js
-          node --check assets/market-native-checkout.js
-          node --check assets/market-payment.js
-          node --check assets/community-v2.js
-          node --check assets/jalali-calendar.js
-          node --check assets/production-hardening.js
-          python3 -m py_compile backend/core_server.py backend/server.py backend/server_v3.py backend/market_server.py backend/market_payment_server.py backend/smoke_test.py backend/smoke_test_v2.py backend/smoke_test_v3.py
-          bash -n scripts/deploy-production.sh
-          python3 backend/smoke_test.py
-          python3 backend/smoke_test_v2.py
-          python3 backend/smoke_test_v3.py
-
-      - name: Prepare package
-        shell: bash
+          bash -n deploy/rollout.sh
+          python3 -m py_compile backend/market_server.py
+          docker compose -f deploy/compose.yml config -q
+          grep -q 'app.vesta-cosmetics.ir' deploy/rollout.sh
+          ! grep -q 'rm -f /etc/nginx/sites-enabled/default' deploy/rollout.sh
+      - name: Create release archive
         run: |
-          set -euo pipefail
-          tar -czf /tmp/vestaland-site.tgz index.html styles.css desktop-enhancements.css app.js manifest.webmanifest sw.js icon.svg assets backend
-
-      - name: Install SSH helper
-        shell: bash
+          tar -czf "$RUNNER_TEMP/vestaapp-release.tgz" \
+            index.html styles.css app.js sw.js icon.svg manifest.webmanifest \
+            backend/market_server.py deploy/market.Dockerfile deploy/compose.yml deploy/app-nginx.conf
+      - name: Install SSH transport
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
-
-      - name: Upload and publish
+      - name: Deploy to separate containers
         shell: bash
         env:
           HOST: ${{ secrets.HOST }}
           PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "${HOST:-}"
-          test -n "${PASS:-}"
-          REMOTE="$HOST"
-          if [[ "$REMOTE" != *"@"* ]]; then REMOTE="root@$REMOTE"; fi
-          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
-          sshpass -p "$PASS" scp $SSH_OPTS /tmp/vestaland-site.tgz "$REMOTE:/tmp/vestaland-site.tgz"
-          sshpass -p "$PASS" ssh $SSH_OPTS "$REMOTE" 'bash -s' < scripts/deploy-production.sh
-
-      - name: Verify production
-        shell: bash
+          test -n "${HOST:-}" || { echo "Missing HOST"; exit 1; }
+          test -n "${PASS:-}" || { echo "Missing PASS"; exit 1; }
+          test -n "${SSH_KNOWN_HOSTS:-}" || { echo "Missing trusted SSH_KNOWN_HOSTS"; exit 1; }
+          target="$HOST"
+          [[ "$target" == *"@"* ]] || target="root@$target"
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh_opts=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" scp "${ssh_opts[@]}" "$RUNNER_TEMP/vestaapp-release.tgz" "$target:/tmp/vestaapp-release.tgz"
+          sshpass -p "$PASS" ssh "${ssh_opts[@]}" "$target" 'bash -s' < deploy/rollout.sh
+      - name: Verify new app and untouched stores
         run: |
-          set +e
-          for i in 1 2 3 4 5 6; do
-            CODE=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs")
-            API=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/health")
-            APIV2=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/v2/health")
-            APIV3=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/v3/health")
-            MARKET=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market/health")
-            PAYMENT=$(curl -sS --max-time 15 "https://vestaland.smarbiz.sbs/api/market-payment/health")
-            COMMUNITY_JS=$(curl -sS -o /tmp/community-v2.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/community-v2.js?v=20260903-1")
-            HARDENING_JS=$(curl -sS -o /tmp/production-hardening.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/production-hardening.js?v=20260903-1")
-            JALALI_JS=$(curl -sS -o /tmp/jalali-calendar.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/jalali-calendar.js?v=20260903-1")
-            PAYMENT_JS=$(curl -sS -o /tmp/market-payment.js -w '%{http_code}' --max-time 15 "https://vestaland.smarbiz.sbs/assets/market-payment.js?v=20260903-1")
-            echo "Attempt $i: https=$CODE api=$API api_v2=$APIV2 api_v3=$APIV3 market=$MARKET payment=$PAYMENT hardening=$HARDENING_JS"
-            if [ "$CODE" = "200" ] \
-              && grep -q "وستالند" /tmp/body 2>/dev/null \
-              && echo "$API" | grep -q '"ok":true' \
-              && echo "$APIV2" | grep -q '"ok":true' \
-              && echo "$APIV3" | grep -q '"ok":true' \
-              && echo "$APIV3" | grep -q '"bazaar_server_activation":true' \
-              && echo "$APIV3" | grep -q '"closed_app_notification_api":true' \
-              && echo "$MARKET" | grep -q '"ok":true' \
-              && echo "$PAYMENT" | grep -q '"ok":true' \
-              && [ "$COMMUNITY_JS" = "200" ] \
-              && [ "$HARDENING_JS" = "200" ] \
-              && [ "$JALALI_JS" = "200" ] \
-              && [ "$PAYMENT_JS" = "200" ] \
-              && grep -q "vestalandProductionHardening" /tmp/production-hardening.js 2>/dev/null; then
-              echo "Vestaland Community V3 + real-only feed + market + payment services are reachable."
-              exit 0
-            fi
-            sleep 5
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 25 https://app.vesta-cosmetics.ir/ | grep -q 'وستالند'
+          curl --fail --silent --show-error --max-time 25 https://app.vesta-cosmetics.ir/api/market/health | grep -q '"ok":true'
+          for site in https://vesta-cosmetics.ir/ https://cutellashop.ir/; do
+            curl -sS -o /dev/null -w '%{http_code}\n' --max-time 25 "$site"
           done
-          exit 1
