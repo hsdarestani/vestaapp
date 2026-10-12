@@ -1,0 +1,56 @@
+name: Finish Vestaapp HTTPS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finish-app-tls.yml'
+permissions:
+  contents: read
+concurrency:
+  group: vestaapp-app-domain-activation
+  cancel-in-progress: false
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate safe TLS fix
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          bash -n deploy/finish-app-tls.sh
+          [[ -n "${HOST:-}" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          [[ "${HOST##*@}" == "193.177.242.64" ]]
+          grep -q 'nginx -s reload' deploy/finish-app-tls.sh
+          ! grep -Eq 'docker (restart|stop) vc-(vesta|cutella|db-)' deploy/finish-app-tls.sh
+      - name: Install SSH helper
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Apply only app TLS vhost change
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$target" 'bash -s' < deploy/finish-app-tls.sh
+      - name: Public health checks
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/app.html
+          grep -q 'وستالند' /tmp/app.html
+          curl --fail --silent --show-error --max-time 20 https://app.vesta-cosmetics.ir/api/market/health | grep -q '"ok":true'
+          for h in cutellashop.ir vesta-cosmetics.ir; do
+            status="$(curl --silent --show-error --output /dev/null --max-time 20 --write-out '%{http_code}' "https://$h/")"
+            echo "$h HTTP=$status"
+            [[ "$status" == "200" || "$status" == "301" || "$status" == "302" ]]
+          done
