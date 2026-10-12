@@ -1,0 +1,55 @@
+name: Vesta domain activation readiness
+on:
+  push:
+    paths:
+      - '.github/workflows/vesta-domain-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Install SSH transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Read-only server inspection
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ -n "$HOST" && -n "$PASS" && -n "$SSH_KNOWN_HOSTS" ]]
+          ip="${HOST##*@}"
+          [[ "$ip" = "193.177.242.64" ]] || { echo "::error::Wrong SSH host"; exit 1; }
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes "$target" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo '=== Container metadata ==='
+          for c in vc-nginx vc-vesta vc-cutella vc-db-vesta vc-db-cutella vc-vestaapp-web vc-vestaapp-market; do
+            docker inspect -f '{{.Name}} {{.State.Status}} {{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "com.docker.compose.service"}}' "$c"
+          done
+          echo '=== Host compose file ==='
+          ls -l /srv/vestacutella/repo/infra/docker-compose.yml
+          docker compose -p vestacutella -f /srv/vestacutella/repo/infra/docker-compose.yml config --quiet
+          echo '=== Network and image ==='
+          docker network inspect vestacutella-backend -f '{{.Name}} {{len .Containers}}'
+          docker image inspect nginx:1.27-alpine -f '{{.Id}}' | cut -c1-20
+          echo '=== App origin ==='
+          docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/ | head -c 200 || true
+          echo
+          echo '=== Store health via localhost HTTPS ==='
+          for host in cutellashop.ir vesta-cosmetics.ir; do
+            printf '%s ' "$host"
+            curl -sS -o /dev/null -w 'HTTP=%{http_code} time=%{time_total}\n' --max-time 12 --resolve "$host:443:127.0.0.1" "https://$host/"
+          done
+          echo '=== Free space ==='
+          df -h /srv/vestacutella
+          echo '=== App ACME path ==='
+          ls -ld /srv/vestaapp/current /srv/vestaapp/current/deploy /srv/vestaapp/data || true
+          REMOTE
