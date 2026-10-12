@@ -457,7 +457,12 @@ class API(BaseHTTPRequestHandler):
             if not isinstance(value,dict):raise ValueError()
             return value
         except (UnicodeError,ValueError):raise Error("JSON معتبر نیست.")
-    def ip(self):return str(self.headers.get("X-Real-IP") or self.client_address[0])[:70]
+    def ip(self):
+        # Two known internal proxies: shared ingress then app nginx. The final
+        # X-Forwarded-For hop is vc-nginx, the preceding hop is the real client,
+        # regardless of untrusted values prepended by clients themselves.
+        chain=[x.strip() for x in str(self.headers.get("X-Forwarded-For") or "").split(",") if x.strip()]
+        return (chain[-2] if len(chain)>=2 else str(self.headers.get("X-Real-IP") or self.client_address[0]))[:70]
     def guard_origin(self):
         origin=self.headers.get("Origin","")
         if origin and origin!=PUBLIC_BASE:raise Error("مبدأ درخواست معتبر نیست.",403)
