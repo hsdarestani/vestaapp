@@ -58,6 +58,9 @@ docker compose -p vestaapp -f "$APP_COMPOSE" config -q
 docker compose -p vestaapp -f "$APP_COMPOSE" up -d --no-deps --no-build --force-recreate app
 token="vestaapp-probe-$(date -u +%s)-$$"
 printf '%s\n' "$token" > "$WEBROOT/.well-known/acme-challenge/$token"
+# The activation umask is 027: nginx runs as an unprivileged user and cannot
+# read a 0640 token. HTTP-01 challenge files are public and must be 0644.
+chmod 644 "$WEBROOT/.well-known/acme-challenge/$token"
 [[ "$(docker exec vc-vestaapp-web wget -qO- "http://127.0.0.1:8080/.well-known/acme-challenge/$token")" == "$token" ]]
 echo "Isolated Vestaapp ACME webroot responds correctly."
 stage=candidate
