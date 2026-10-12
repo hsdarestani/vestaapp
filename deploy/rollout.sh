@@ -19,7 +19,7 @@ CERT_SOURCE=""
 for src in app-vesta vesta; do
   CRT="$STORE_ROOT/runtime/certs/$src/fullchain.pem"
   KEY="$STORE_ROOT/runtime/certs/$src/privkey.pem"
-  if [ -s "$CRT" ] && [ -s "$KEY" ] && openssl x509 -in "$CRT" -noout -checkhost "$DOMAIN" >/dev/null 2>&1; then
+  if [ -s "$CRT" ] && [ -s "$KEY" ] && openssl x509 -in "$CRT" -noout -checkhost "$DOMAIN" 2>/dev/null | grep -Fq "does match certificate"; then
     CERT_SOURCE="$src"; break
   fi
 done
