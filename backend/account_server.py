@@ -4,6 +4,7 @@ No SMS, payments, or AI calls are made until environment secrets are provisioned
 All subscriptions and checkout access are decided server-side, not by browser state.
 """
 import argparse
+import base64
 import hashlib
 import hmac
 import json
@@ -356,11 +357,39 @@ def checkout(user,store,items,address,request_id):
           VALUES(?,?,?,?,?,?,?,?)""",(user["id"],request_id,store,oid,str(response.get("order_key") or "")[:120],url,str(response.get("status") or "pending")[:32],now()))
     return {"ok":True,"order_id":oid,"redirect_url":url,"status":response.get("status") or "pending"}
 
+def woo_order_status(store,order_id):
+    base={"vesta":"https://vesta-cosmetics.ir","cutella":"https://cutellashop.ir"}[store]
+    prefix="VESTA" if store=="vesta" else "CUTELLA"
+    key=os.getenv(prefix+"_WC_CONSUMER_KEY","")
+    secret=os.getenv(prefix+"_WC_CONSUMER_SECRET","")
+    if not key or not secret:return None
+    auth=base64.b64encode((key+":"+secret).encode()).decode()
+    try:
+        data=json_http(base+"/wp-json/wc/v3/orders/"+str(order_id),
+          headers={"Authorization":"Basic "+auth},timeout=7)
+    except Error:return None
+    if not isinstance(data,dict) or int(data.get("id") or 0)!=int(order_id):return None
+    return {"status":str(data.get("status") or "")[:35],"date_paid":bool(data.get("date_paid")),
+            "total":str(data.get("total") or "")[:35]}
+
 def orders(user):
     with conn() as c:
-        rows=c.execute("SELECT id,store,order_id,payment_status,created_at FROM app_orders WHERE user_id=? ORDER BY id DESC LIMIT 40",(user["id"],)).fetchall()
-    return {"ok":True,"orders":[dict(r) for r in rows],
-            "note":"وضعیت فعلی، وضعیت زمان ثبت سفارش است. جزئیات پرداخت و ارسال را در فروشگاه مربوطه ببین."}
+        rows=c.execute("SELECT id,store,order_id,payment_status,created_at FROM app_orders WHERE user_id=? ORDER BY id DESC LIMIT 30",(user["id"],)).fetchall()
+    result=[]
+    for i,row in enumerate(rows):
+        out=dict(row)
+        if i<8 and out.get("order_id"):
+            fresh=woo_order_status(out["store"],out["order_id"])
+            if fresh:
+                out["payment_status"]=fresh["status"]
+                out["date_paid"]=fresh["date_paid"]
+                out["synced"]=True
+                with conn() as c:
+                    c.execute("UPDATE app_orders SET payment_status=? WHERE id=?",(fresh["status"],out["id"]))
+            else:out["synced"]=False
+        result.append(out)
+    return {"ok":True,"orders":result,
+            "note":"تغییر وضعیت پرداخت و ارسال از ووکامرس دریافت می‌شود اگر دسترسی خواندن فروشگاه فعال باشد."}
 
 class API(BaseHTTPRequestHandler):
     server_version="VestalandAccount/1.0"
