@@ -1,405 +1,63 @@
-const $ = (s, root = document) => root.querySelector(s);
-const $$ = (s, root = document) => [...root.querySelectorAll(s)];
-
-const state = {
-  onboardingDone: localStorage.getItem('vestaland:onboarding') === '1',
-  token: localStorage.getItem('vestaland:token') || '',
-  user: null,
-  currentQuiz: 0,
-  quizAnswers: [],
-  feed: 'vent',
-  view: 'hangout',
-  mood: Number(localStorage.getItem('vestaland:mood') || 3),
-  marketCategory: 'all',
-  marketStore: 'all',
-  subscription: localStorage.getItem('vestaland:plan') || 'trial',
-  remotePosts: {vent:[], gossip:[], advice:[], challenge:[], flex:[]}
-};
-
-const quizzes = [
-  {visual:'💬',q:'دوستت نصفه‌شب بگه «بیا بیرون»، اولین جوابت چیه؟',a:['الان؟ لباس چی بپوشم؟ 💅','اول بگو کجا و کیا هستن 👀','باشه، ولی پنج دقیقه صبر کن آماده شم 💄','بستگی داره حوصله‌م چقدر باشه 😌']},
-  {visual:'🛍️',q:'برای یه خرید کوچیک رفتی بیرون. محتمل‌ترین پایان ماجرا؟',a:['فقط همون یه چیز رو می‌خرم، قول 😇','سه تا چیز اضافه ولی «لازم» می‌خرم','هیچی نمی‌خرم و فقط نگاه می‌کنم','یه چیز برای خودم، یه چیز برای دوستم']},
-  {visual:'📱',q:'یه پیام دوپهلو گرفتی. اول چه کار می‌کنی؟',a:['اسکرین می‌گیرم برای مشورت','سه بار می‌خونمش و تحلیل می‌کنم','سین می‌کنم، بعداً جواب می‌دم','همون چیزی که فکر می‌کنم رو می‌گم']},
-  {visual:'✨',q:'از بین اینا کدوم بیشتر شبیه یه حال خوب واقعیه؟',a:['یه روز بدون عجله','یه قرار خوب با آدم موردعلاقه‌م','خریدی که مدت‌ها می‌خواستم','اینکه حس کنم خودمم و لازم نیست نقش بازی کنم']}
-];
-
-const basePosts = {
-  vent: [
-    {name:'نرگس',avatar:'ن',time:'۲ ساعت پیش',text:'گاهی حس می‌کنم هیچ‌کس واقعاً حال منو نمی‌فهمه… فقط دلم می‌خواد یکی بدون سؤال اضافه گوش بده.',reactions:{'🤍':42,'🥺':29,'🫂':36,'💜':58}},
-    {name:'مینا',avatar:'م',time:'۴ ساعت پیش',text:'دلم خیلی گرفته ولی نمی‌دونم چرا… انگار یه سنگینی توی قلبمه که ول نمی‌کنه.',reactions:{'🤍':31,'🥺':24,'🫂':32,'💜':45}},
-    {name:'ناشناس',avatar:'؟',time:'۶ ساعت پیش',text:'امروز یه اتفاق کوچیک باعث شد یه عالمه اشکم بریزه. چرا بعضی وقتا انقدر جمع می‌شیم؟',reactions:{'🤍':26,'🥺':18,'🫂':28,'💜':36}}
-  ],
-  gossip: [
-    {name:'دختر آبی',avatar:'د',time:'۱ ساعت پیش',text:'یه سؤال جدی: وقتی یکی همیشه استوری‌هاتو می‌بینه ولی هیچ‌وقت جواب نمی‌ده، فضولیه یا علاقه؟ 😐',reactions:{'😂':61,'👀':77,'🤔':34},comments:48},
-    {name:'سارا',avatar:'س',time:'۳ ساعت پیش',text:'همکارم هر بار می‌گه «من اهل حاشیه نیستم» و دقیقاً بعدش یه حاشیه جدید تعریف می‌کنه :))',reactions:{'😂':92,'👀':54,'🔥':28},comments:72}
-  ],
-  advice: [
-    {name:'مینا',avatar:'م',time:'۳ ساعت پیش',text:'برای تولد دوست صمیمیم کدوم استایل بهتره؟',media:['استایل A','استایل B'],poll:['A — 65٪','B — 35٪'],reactions:{'😍':78,'💜':26},comments:78},
-    {name:'سارا',avatar:'س',time:'۵ ساعت پیش',text:'به پیامش چی جواب بدم که محترمانه باشه ولی زیادی گرم هم نباشه؟',media:['اسکرین پیام'],reactions:{'🤔':52,'💬':41},comments:52},
-    {name:'نرگس',avatar:'ن',time:'۶ ساعت پیش',text:'فردا می‌خوام برم ترمیم. کدوم مدل ناخن قشنگ‌تره؟',media:['مدل A','مدل B'],poll:['A — 57٪','B — 43٪'],reactions:{'💅':63,'😍':41},comments:63}
-  ],
-  challenge: [
-    {name:'یاسی',avatar:'ی',time:'۴۰ دقیقه پیش',text:'به خود ۱۸ سالم می‌گفتم لازم نیست برای دوست‌داشتنی بودن این‌همه توضیح بدی.',reactions:{'💜':91,'🫂':63,'✨':44}},
-    {name:'رها',avatar:'ر',time:'۱ ساعت پیش',text:'می‌گفتم هر چیزی که الان فکر می‌کنی آخر دنیاست، دو سال دیگه حتی یادت نمیاد.',reactions:{'💜':72,'🫂':49,'✨':58}}
-  ],
-  flex: [
-    {name:'سحر',avatar:'س',time:'۳ ساعت پیش',text:'بالاخره پروژه‌ای که دو ماه روش کار می‌کردم تأیید شد 😭✨ خیلی به خودم افتخار می‌کنم.',reactions:{'👏':88,'😍':55,'💖':71,'✨':46}},
-    {name:'ترانه',avatar:'ت',time:'۵ ساعت پیش',text:'امروز برای اولین بار تنهایی رفتم یه کاری که همیشه ازش می‌ترسیدم و انجامش دادم 🥹',reactions:{'👏':73,'😍':39,'💖':62,'✨':42}}
-  ]
-};
-
-const products = [
-  {id:1,name:'سرم نیاسینامید ۱۰٪',store:'cutella',category:'skin',price:1790000,icon:'🧴'},
-  {id:2,name:'ماسک لب شب',store:'cutella',category:'skin',price:6450000,icon:'🫙'},
-  {id:3,name:'عطر زنانه',store:'vesta',category:'accessory',price:8190000,icon:'🧪'},
-  {id:4,name:'سشوار حرفه‌ای',store:'vesta',category:'hair',price:24900000,icon:'💨'},
-  {id:5,name:'رژ لب مات',store:'cutella',category:'makeup',price:2250000,icon:'💄'},
-  {id:6,name:'لاک ژلی',store:'cutella',category:'nail',price:1290000,icon:'💅'},
-  {id:7,name:'لوسیون بدن',store:'vesta',category:'body',price:2890000,icon:'🧴'},
-  {id:8,name:'گوشواره مینیمال',store:'vesta',category:'accessory',price:3950000,icon:'✨'}
-];
-
-const feedMeta = {
-  vent:{label:'درددل',title:'هرچی تو دلت هست بنویس…',anonymous:true},
-  gossip:{label:'غیبت',title:'خب، چی شده؟ تعریف کن 👀',anonymous:true},
-  advice:{label:'مشورت',title:'از دخترا مشورت بگیر',anonymous:false},
-  challenge:{label:'چالش روزانه',title:'جوابت به چالش امروز چیه؟',anonymous:false},
-  flex:{label:'پز',title:'یه اتفاق خوب داری؟ پز بده ✨',anonymous:false}
-};
-
-async function api(path, options={}){
-  const headers = {'Content-Type':'application/json', ...(options.headers||{})};
-  if(state.token) headers.Authorization = `Bearer ${state.token}`;
-  const res = await fetch(path, {...options, headers});
-  let data = {};
-  try { data = await res.json(); } catch (_) {}
-  if(res.status === 401 && !['/api/login','/api/register'].includes(path)){
-    state.token=''; state.user=null; localStorage.removeItem('vestaland:token');
-  }
-  if(!res.ok) throw new Error(data.error || 'یه خطا پیش اومد. دوباره امتحان کن.');
-  return data;
-}
-
-async function init(){
-  bindActions();
-  buildCalendar();
-  updateMood(state.mood, false);
-  renderProducts();
-  renderFeed();
-  if(state.token){
-    try{
-      const data = await api('/api/me');
-      state.user = data.user;
-      state.subscription = data.user.plan || state.subscription;
-      localStorage.setItem('vestaland:onboarding','1');
-      state.onboardingDone = true;
-      finalizeEntry(false);
-      return;
-    }catch(_){ /* session expired */ }
-  }
-  $('#onboarding').classList.remove('hidden');
-  $('#mainApp').classList.add('hidden');
-  if(state.onboardingDone) setTimeout(()=>showAuthModal('login'), 80);
-}
-
-function bindActions(){
-  document.addEventListener('click', e => {
-    const action = e.target.closest('[data-action]')?.dataset.action;
-    if(action) handleAction(action);
-
-    const feedBtn = e.target.closest('[data-feed]');
-    if(feedBtn){
-      state.feed = feedBtn.dataset.feed;
-      $$('.segment').forEach(b=>b.classList.toggle('active', b===feedBtn));
-      updateComposer(); renderFeed(); loadFeed();
-    }
-
-    const viewBtn = e.target.closest('[data-view]');
-    if(viewBtn) switchView(viewBtn.dataset.view);
-
-    const moodBtn = e.target.closest('[data-mood]');
-    if(moodBtn) updateMood(Number(moodBtn.dataset.mood), true);
-
-    const reactionBtn = e.target.closest('[data-reaction]');
-    if(reactionBtn) toggleReaction(reactionBtn);
-
-    const commentBtn = e.target.closest('[data-comments-post]');
-    if(commentBtn) openComments(Number(commentBtn.dataset.commentsPost));
-
-    const cat = e.target.closest('[data-category]');
-    if(cat){ state.marketCategory=cat.dataset.category; $$('#marketCategories .category').forEach(b=>b.classList.toggle('active',b===cat)); renderProducts(); }
-
-    const store = e.target.closest('[data-store]');
-    if(store){ state.marketStore=store.dataset.store; $$('.store-switch button').forEach(b=>b.classList.toggle('active',b===store)); renderProducts(); }
-
-    const addCart = e.target.closest('[data-product]');
-    if(addCart) toast('به سبد خرید اضافه شد ✓');
-  });
-
-  $$('input[name="plan"]').forEach(r=>r.addEventListener('change',()=>{
-    $$('.plan-row').forEach(row=>row.classList.toggle('selected',row.contains(r)&&r.checked));
-    const cta=$('[data-action="enter-app"].primary-btn');
-    if(r.checked) cta.textContent = r.value==='trial' ? 'شروع ۷ روز رایگان' : 'ادامه و ساخت حساب';
-  }));
-  $('#marketSearch').addEventListener('input', renderProducts);
-}
-
-function handleAction(action){
-  const map={
-    'start-quiz':startQuiz,
-    'show-plans':showPlans,
-    'enter-app':enterApp,
-    'publish-post':publishPost,
-    'answer-challenge':()=>{state.feed='challenge'; $$('.segment').forEach(b=>b.classList.toggle('active',b.dataset.feed==='challenge')); updateComposer(); renderFeed(); loadFeed(); $('#postText').focus();},
-    'open-profile':()=>switchView('profile'),
-    'show-subscription':openSubscription,
-    'close-modal':closeModal,
-    'edit-cycle':openCycleEditor,
-    'logout':logout,
-    'reset-demo':resetDemo
-  };
-  map[action]?.();
-}
-
-function startQuiz(){
-  $('#quizIntro').classList.add('hidden'); $('#quizCard').classList.remove('hidden');
-  state.currentQuiz=0; state.quizAnswers=[]; showQuestion();
-}
-
-function showQuestion(){
-  const item=quizzes[state.currentQuiz];
-  $('#quizCounter').textContent=`سؤال ${state.currentQuiz+1} از ${quizzes.length}`;
-  $('#quizProgress').style.width=`${((state.currentQuiz+1)/quizzes.length)*100}%`;
-  $('#questionVisual').textContent=item.visual; $('#quizQuestion').textContent=item.q;
-  $('#quizOptions').innerHTML=item.a.map((x,i)=>`<button type="button" data-quiz-option="${i}">${x}</button>`).join('');
-  $$('[data-quiz-option]').forEach(btn=>btn.addEventListener('click',()=>selectQuizAnswer(Number(btn.dataset.quizOption))));
-}
-
-function selectQuizAnswer(i){
-  state.quizAnswers.push(i);
-  if(state.currentQuiz<quizzes.length-1){state.currentQuiz++;showQuestion();}else showQuizResult();
-}
-
-function showQuizResult(){
-  $('#quizCard').classList.add('hidden'); $('#quizResult').classList.remove('hidden');
-  const variants=['نتیجه می‌گه احتمالاً قبل از جواب دادن، حداقل یه بار با خودت مشورت می‌کنی 😌','سیستم تشخیص داد برای دورهمی آماده‌ای. قضاوت کمتر، حرف واقعی بیشتر ✨','امتیازت خوبه؛ اجازه ورود صادر شد. فقط قانون درددل رو یادت نره: گوش بده، قضاوت نکن.'];
-  $('#resultCopy').textContent=variants[state.quizAnswers.reduce((a,b)=>a+b,0)%variants.length];
-}
-
-function showPlans(){ $('#quizResult').classList.add('hidden'); $('#planCard').classList.remove('hidden'); }
-
-function enterApp(){
-  const plan=$('input[name="plan"]:checked')?.value||'trial';
-  state.subscription=plan; localStorage.setItem('vestaland:plan',plan);
-  if(state.user){ finalizeEntry(); return; }
-  showAuthModal('register');
-}
-
-function showAuthModal(mode='register'){
-  const isRegister=mode==='register';
-  $('#modalContent').innerHTML=`
-    <p class="eyebrow accent">${isRegister?'حساب وستالند':'خوش برگشتی'}</p>
-    <h2>${isRegister?'یه اسم برای خودت انتخاب کن':'وارد حسابت شو'}</h2>
-    <p class="lead">${isRegister?'اسم نمایشی می‌تونه مستعار باشه. نام کاربری فقط برای ورود به حسابته.':'همون نام کاربری و رمزی که ساختی رو وارد کن.'}</p>
-    <form id="authForm" class="modal-form auth-form">
-      ${isRegister?'<label>اسم نمایشی<input id="authDisplay" maxlength="32" autocomplete="nickname" placeholder="مثلاً نازی" required></label>':''}
-      <label>نام کاربری<input id="authUsername" dir="ltr" minlength="3" maxlength="24" autocomplete="username" placeholder="nazi_73" required></label>
-      <label>رمز عبور<input id="authPassword" dir="ltr" type="password" minlength="8" maxlength="128" autocomplete="${isRegister?'new-password':'current-password'}" placeholder="حداقل ۸ کاراکتر" required></label>
-      <p id="authError" class="form-error hidden"></p>
-      <button class="primary-btn" type="submit">${isRegister?'ساخت حساب و ورود':'ورود'}</button>
-    </form>
-    <button class="text-btn auth-switch" type="button" id="authSwitch">${isRegister?'قبلاً حساب ساختی؟ وارد شو':'حساب نداری؟ بساز'}</button>`;
-  openModal();
-  $('#authSwitch').addEventListener('click',()=>showAuthModal(isRegister?'login':'register'));
-  $('#authForm').addEventListener('submit',e=>{e.preventDefault();submitAuth(isRegister?'register':'login');});
-}
-
-async function submitAuth(mode){
-  const username=$('#authUsername').value.trim(); const password=$('#authPassword').value;
-  const payload={username,password};
-  if(mode==='register'){payload.display_name=$('#authDisplay').value.trim();payload.plan=state.subscription;}
-  const error=$('#authError'); error.classList.add('hidden');
-  const btn=$('#authForm button[type="submit"]'); btn.disabled=true; btn.textContent='یه لحظه…';
-  try{
-    const data=await api(`/api/${mode}`,{method:'POST',body:JSON.stringify(payload)});
-    state.token=data.token; state.user=data.user; state.subscription=data.user.plan||state.subscription;
-    localStorage.setItem('vestaland:token',state.token); localStorage.setItem('vestaland:onboarding','1'); localStorage.setItem('vestaland:plan',state.subscription);
-    state.onboardingDone=true; closeModal(); finalizeEntry(); toast(mode==='register'?'حسابت ساخته شد؛ خوش اومدی 🤍':'خوش برگشتی 🤍');
-  }catch(err){error.textContent=err.message;error.classList.remove('hidden');btn.disabled=false;btn.textContent=mode==='register'?'ساخت حساب و ورود':'ورود';}
-}
-
-function finalizeEntry(load=true){
-  $('#onboarding').classList.add('hidden'); $('#mainApp').classList.remove('hidden');
-  updateProfileStats(); updateIdentity();
-  if(load) loadFeed(); else loadFeed();
-}
-
-function updateIdentity(){
-  const name=state.user?.display_name||'دختر وستالند'; const avatar=name.slice(0,1)||'و';
-  const headerAvatar=$('.avatar-btn span'); if(headerAvatar) headerAvatar.textContent=avatar;
-  const profileAvatar=$('.profile-avatar'); if(profileAvatar) profileAvatar.textContent=avatar;
-  const profileName=$('.profile-card h2'); if(profileName) profileName.textContent=name;
-  const profileSub=$('.profile-card .muted'); if(profileSub) profileSub.textContent=state.user?`@${state.user.username}`:'عضو جدید دورهمی';
-}
-
-function updateComposer(){
-  const meta=feedMeta[state.feed];
-  $('#composerLabel').textContent=meta.label; $('#composerTitle').textContent=meta.title;
-  $('#anonymousWrap').classList.toggle('hidden',!meta.anonymous); $('#dailyChallenge').classList.toggle('hidden',state.feed!=='challenge'); $('#photoButton').classList.toggle('hidden',state.feed==='vent');
-}
-
-async function loadFeed(){
-  if(!state.user){renderFeed();return;}
-  const feed=state.feed;
-  $('#feed').classList.add('loading-feed');
-  try{
-    const data=await api(`/api/posts?type=${encodeURIComponent(feed)}`);
-    state.remotePosts[feed]=(data.posts||[]).map(p=>({...p,remote:true,time:relativeTime(p.created_at)}));
-    if(state.feed===feed) renderFeed();
-    updateProfileStats();
-  }catch(err){ if(state.feed===feed) toast(err.message); }
-  finally{$('#feed').classList.remove('loading-feed');}
-}
-
-function renderFeed(){
-  updateComposer();
-  const posts=[...(state.remotePosts[state.feed]||[]),...(basePosts[state.feed]||[])];
-  $('#feed').innerHTML=posts.map((p,idx)=>postTemplate(p,idx)).join('');
-}
-
-function postTemplate(p,idx){
-  const media=p.media?.length?`<div class="post-media">${p.media.map(x=>`<div class="photo-placeholder">${escapeHtml(x)}</div>`).join('')}</div>`:'';
-  const poll=p.poll?.length?`<div class="poll-bars">${p.poll.map(x=>`<span class="soft-note" style="display:block;margin:6px 0">${escapeHtml(x)}</span>`).join('')}</div>`:'';
-  const merged={...defaultReactions(state.feed),...(p.reactions||{})};
-  const my=new Set(p.my_reactions||[]);
-  const reactions=Object.entries(merged).map(([emoji,count])=>`<button class="reaction-btn ${my.has(emoji)?'active':''}" data-reaction="${p.remote?'r':'s'}|${p.remote?p.id:idx}|${emoji}">${emoji} <span>${count}</span></button>`).join('');
-  let comments='';
-  if(state.feed!=='vent'&&state.feed!=='flex'){
-    comments=p.remote?`<button class="comment-summary comment-button" data-comments-post="${p.id}">${p.comments||0} نظر</button>`:`<span class="comment-summary">${p.comments||0} نظر</span>`;
-  }
-  const mine=p.is_mine?'<span class="mine-badge">پست من</span>':'';
-  return `<article class="post-card">
-    <div class="post-head"><div class="post-user"><div class="mini-avatar">${escapeHtml(p.avatar||'و')}</div><div class="post-meta"><b>${escapeHtml(p.name||'دختر وستالند')}</b><small>${escapeHtml(p.time||'همین الان')}</small></div></div><span class="post-tag">${feedMeta[state.feed].label}</span></div>
-    <div class="post-body">${escapeHtml(p.text||'')}</div>${media}${poll}
-    <div class="reaction-row">${reactions}${comments}${mine}</div>
-  </article>`;
-}
-
-function defaultReactions(type){
-  if(type==='vent') return {'🤍':0,'🥺':0,'🫂':0,'💜':0};
-  if(type==='gossip') return {'😂':0,'👀':0,'🤔':0,'🔥':0};
-  if(type==='advice') return {'😍':0,'💜':0,'✨':0,'💅':0,'🤔':0};
-  if(type==='challenge') return {'💜':0,'🫂':0,'✨':0};
-  if(type==='flex') return {'👏':0,'😍':0,'💖':0,'✨':0};
-  return {'💜':0};
-}
-
-async function publishPost(){
-  if(!state.user){showAuthModal('login');return;}
-  const text=$('#postText').value.trim(); if(!text){toast('اول یه چیزی بنویس :)');return;}
-  const anonymous=$('#anonymousToggle').checked&&feedMeta[state.feed].anonymous;
-  const btn=$('[data-action="publish-post"]'); btn.disabled=true;
-  try{
-    const data=await api('/api/posts',{method:'POST',body:JSON.stringify({type:state.feed,text,anonymous})});
-    state.remotePosts[state.feed].unshift({...data.post,remote:true,time:'همین الان'});
-    $('#postText').value=''; $('#anonymousToggle').checked=false; renderFeed(); updateProfileStats(); toast('پستت برای همه منتشر شد ✓');
-  }catch(err){toast(err.message);}finally{btn.disabled=false;}
-}
-
-async function toggleReaction(btn){
-  const [kind,id,emoji]=btn.dataset.reaction.split('|'); const span=$('span',btn);
-  if(kind==='s'){
-    const active=btn.classList.toggle('active'); span.textContent=Number(span.textContent)+(active?1:-1); return;
-  }
-  if(!state.user){showAuthModal('login');return;}
-  btn.disabled=true;
-  try{
-    const data=await api(`/api/posts/${id}/react`,{method:'POST',body:JSON.stringify({emoji})});
-    btn.classList.toggle('active',data.active); span.textContent=data.count;
-    const post=state.remotePosts[state.feed].find(p=>String(p.id)===String(id));
-    if(post){post.reactions[emoji]=data.count;post.my_reactions=data.active?[...new Set([...(post.my_reactions||[]),emoji])]:(post.my_reactions||[]).filter(x=>x!==emoji);}
-  }catch(err){toast(err.message);}finally{btn.disabled=false;}
-}
-
-async function openComments(postId){
-  $('#modalContent').innerHTML='<p class="eyebrow accent">گفت‌وگو</p><h2>نظرها</h2><p class="muted">دارم میارمشون…</p>'; openModal();
-  try{
-    const data=await api(`/api/posts/${postId}/comments`);
-    renderCommentsModal(postId,data.comments||[]);
-  }catch(err){$('#modalContent').innerHTML=`<h2>نظرها</h2><p class="form-error">${escapeHtml(err.message)}</p>`;}
-}
-
-function renderCommentsModal(postId,comments){
-  const list=comments.length?comments.map(c=>`<div class="comment-item"><span class="mini-avatar">${escapeHtml(c.avatar||'و')}</span><div><b>${escapeHtml(c.name||'دختر وستالند')}</b><p>${escapeHtml(c.text)}</p><small>${escapeHtml(relativeTime(c.created_at))}</small></div></div>`).join(''):'<p class="muted empty-comments">هنوز کسی چیزی نگفته. اولین نفر باش :)</p>';
-  $('#modalContent').innerHTML=`<p class="eyebrow accent">گفت‌وگو</p><h2>نظرها</h2><div class="comments-list">${list}</div><form id="commentForm" class="comment-form"><input id="commentText" maxlength="1000" placeholder="نظرت رو بنویس…" required><button class="primary-btn compact">ارسال</button></form><p id="commentError" class="form-error hidden"></p>`;
-  $('#commentForm').addEventListener('submit',async e=>{
-    e.preventDefault(); const text=$('#commentText').value.trim(); if(!text)return;
-    const btn=$('#commentForm button'); btn.disabled=true;
-    try{
-      await api(`/api/posts/${postId}/comments`,{method:'POST',body:JSON.stringify({text})});
-      const post=state.remotePosts[state.feed].find(p=>p.id===postId); if(post)post.comments=(post.comments||0)+1;
-      renderFeed(); await openComments(postId);
-    }catch(err){$('#commentError').textContent=err.message;$('#commentError').classList.remove('hidden');btn.disabled=false;}
-  });
-}
-
-function switchView(view){
-  state.view=view; $$('.view').forEach(v=>v.classList.remove('active-view')); $(`#${view}View`)?.classList.add('active-view'); $$('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
-  const titles={hangout:['سلام دختر','خوش اومدی به دنیای خودمون'],self:['خودم','اینجا فقط برای خودته'],market:['بازار','از وستا و کیوتلا'],profile:['پروفایل','تنظیمات و عضویت']};
-  $('#sectionTitle').textContent=titles[view][0]; $('#sectionSubtitle').textContent=titles[view][1]; window.scrollTo({top:0,behavior:'smooth'});
-}
-
-function updateMood(mood,persist){
-  state.mood=mood;
-  const names={1:'داغونم',2:'یکم خرابم',3:'معمولی',4:'خوبم',5:'عالی‌ام'};
-  const tips={1:'امروز فقط از خودت انتظار حداقل‌ها رو داشته باش. آب، غذا، استراحت؛ همین.',2:'یه کار کوچیک انتخاب کن که فشار امروز رو کمتر کنه، نه اینکه همه‌چیز رو حل کنه.',3:'امروز لازم نیست فوق‌العاده باشی؛ یه کار کوچیک برای خودت کافیه.',4:'حالت خوبه؛ یه تیک کوچیک از کاری که عقب انداختی می‌تونه روزتو بهتر هم بکنه.',5:'این انرژی رو برای یه چیز دوست‌داشتنی خرج کن؛ حتی یه کار خیلی کوچیک ✨'};
-  $$('#moodOptions button').forEach(b=>b.classList.toggle('selected',Number(b.dataset.mood)===mood)); $('#plant').className=`plant mood-${mood}`; $('#moodTip').textContent=tips[mood]; $('#savedMood').textContent=names[mood];
-  if(persist){localStorage.setItem('vestaland:mood',String(mood)); if(state.user)api('/api/mood',{method:'POST',body:JSON.stringify({mood})}).catch(()=>{}); toast('حال امروزت ثبت شد 🤍');}
-}
-
-function buildCalendar(){
-  const weekdays=['ش','ی','د','س','چ','پ','ج']; let html=weekdays.map(d=>`<div class="cal-cell head">${d}</div>`).join('');
-  for(let i=1;i<=35;i++){const day=i<=31?i:'';const cls=[];if([10,11,12,13,14].includes(i))cls.push('period-day');if([19,20,21,22,23,24].includes(i))cls.push('fertile-day');if(i===26)cls.push('today-day');html+=`<div class="cal-cell ${cls.join(' ')}">${day}</div>`;}
-  $('#calendar').innerHTML=html;
-}
-
-function renderProducts(){
-  const q=$('#marketSearch').value.trim().toLowerCase(); const list=products.filter(p=>(state.marketCategory==='all'||p.category===state.marketCategory)&&(state.marketStore==='all'||p.store===state.marketStore)&&(!q||p.name.toLowerCase().includes(q)));
-  $('#productGrid').innerHTML=list.length?list.map(p=>`<article class="product-card"><div class="product-image">${p.icon}</div><div class="product-info"><small>${p.store==='cutella'?'کیوتلا':'وستا'}</small><h3>${p.name}</h3><div class="product-price">${formatPrice(p.price)} تومان</div><button data-product="${p.id}">افزودن به سبد</button></div></article>`).join(''):'<p class="muted">محصولی پیدا نشد.</p>';
-}
-function formatPrice(n){return new Intl.NumberFormat('fa-IR').format(n)}
-
-function updateProfileStats(){
-  const seen=new Map(); Object.values(state.remotePosts).flat().forEach(p=>{if(p.remote)seen.set(p.id,p);});
-  $('#myPostCount').textContent=String([...seen.values()].filter(p=>p.is_mine).length);
-  const labels={trial:'۷ روز آزمایشی','1m':'۱ ماهه','3m':'۳ ماهه','6m':'۶ ماهه'}; $('#subscriptionStatus').textContent=labels[state.subscription]||labels.trial;
-}
-
-function openSubscription(){
-  const prices=[['۷ روز آزمایشی','رایگان','trial'],['۱ ماهه','۳۴۹٬۰۰۰ تومان','1m'],['۳ ماهه','۸۹۹٬۰۰۰ تومان','3m'],['۶ ماهه','۱٬۵۹۰٬۰۰۰ تومان','6m']];
-  $('#modalContent').innerHTML=`<p class="eyebrow accent">VIP</p><h2>اشتراک وستالند</h2><p class="lead">انتخاب پلن فعلاً آزمایشی است؛ اتصال پرداخت در مرحله بعد فعال می‌شود.</p><div class="plan-list">${prices.map(([n,p,v])=>`<button class="plan-row ${state.subscription===v?'selected':''}" data-modal-plan="${v}" style="width:100%;text-align:right"><span><b>${n}</b><small>${v==='trial'?'شروع بدون پرداخت':'پرداخت هنوز فعال نیست'}</small></span><strong>${p}</strong></button>`).join('')}</div>`; openModal();
-  $$('[data-modal-plan]').forEach(b=>b.addEventListener('click',()=>{state.subscription=b.dataset.modalPlan;localStorage.setItem('vestaland:plan',state.subscription);updateProfileStats();closeModal();toast('پلن برای دمو انتخاب شد ✓')}));
-}
-
-function openCycleEditor(){
-  $('#modalContent').innerHTML=`<p class="eyebrow accent">چرخه پریودی</p><h2>تنظیم چرخه</h2><div class="modal-form"><label>طول معمول چرخه<input id="cycleInput" type="number" min="20" max="45" value="28"></label><label>چند روز تا پریود بعدی؟<input id="periodInput" type="number" min="0" max="45" value="5"></label><button class="primary-btn" id="saveCycle">ذخیره</button></div>`; openModal();
-  $('#saveCycle').addEventListener('click',()=>{const cycle=$('#cycleInput').value||28;const next=$('#periodInput').value||5;$('#cycleLength').textContent=`${cycle} روز`;$('#nextPeriod').textContent=`${next} روز دیگه`;closeModal();toast('چرخه ذخیره شد ✓')});
-}
-
-async function logout(){
-  try{await api('/api/logout',{method:'POST',body:'{}'});}catch(_){}
-  state.token='';state.user=null;localStorage.removeItem('vestaland:token'); closeModal(); location.reload();
-}
-
-function openModal(){ $('#modal').classList.remove('hidden'); document.body.style.overflow='hidden'; }
-function closeModal(){ $('#modal').classList.add('hidden'); document.body.style.overflow=''; }
-function toast(text){const el=$('#toast');el.textContent=text;el.classList.remove('hidden');clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.add('hidden'),2400);}
-function resetDemo(){if(!confirm('دمو از اول شروع بشه؟ ورود و تنظیمات این دستگاه پاک می‌شن، ولی پست‌های منتشرشده روی سرور باقی می‌مونن.'))return;Object.keys(localStorage).filter(k=>k.startsWith('vestaland:')).forEach(k=>localStorage.removeItem(k));location.reload();}
-function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]))}
-function relativeTime(value){
-  if(!value)return 'همین الان'; const d=new Date(value); if(Number.isNaN(d.getTime()))return 'همین الان'; const sec=Math.max(0,Math.floor((Date.now()-d.getTime())/1000));
-  if(sec<60)return 'همین الان'; const min=Math.floor(sec/60); if(min<60)return `${new Intl.NumberFormat('fa-IR').format(min)} دقیقه پیش`; const hr=Math.floor(min/60); if(hr<24)return `${new Intl.NumberFormat('fa-IR').format(hr)} ساعت پیش`; const day=Math.floor(hr/24);return `${new Intl.NumberFormat('fa-IR').format(day)} روز پیش`;
-}
-
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}
-document.addEventListener('DOMContentLoaded',init);
+'use strict';
+(function(){
+const $=(s,r=document)=>r.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+const clothes=[['top','بالاپوش','👚'],['bottom','شلوار و دامن','👖'],['dress','پیراهن و مانتو','👗'],['outer','کت و رویه','🧥'],['shoes','کفش','👟'],['bag','کیف','👜'],['jewel','اکسسوری','💍'],['other','سایر','🎀']];
+const beauty=[['makeup','آرایشی','💄'],['skincare','مراقبت پوست','🧴'],['hair','مو','🪮'],['fragrance','عطر','🌸'],['tools','ابزار زیبایی','🪞'],['other','سایر','🎀']];
+const colors={pink:['صورتی','#f4a0bd'],white:['سفید','#f6f4f5'],black:['مشکی','#3b3640'],cream:['کرم','#dfcaaa'],blue:['آبی','#9fc5e9'],green:['سبز','#b6d3b5'],red:['قرمز','#cf6572'],brown:['قهوه‌ای','#a27e68'],purple:['یاسی','#c8b0e7'],other:['متفرقه','#d5c3cc']};
+const shopHosts={'vesta':'vesta-cosmetics.ir','cutella':'cutellashop.ir'};
+const dbName='vestaland-personal-v1';
+let db=null,photoUrls=[],pendingImage=null,marketSeq=0,toastTimeout=0;
+const state={route:'home',items:[],type:'closet',filter:'all',store:'all',query:'',products:[],marketError:'',look:null};
+const today=()=>new Date().toISOString().slice(0,10);
+const faNum=n=>new Intl.NumberFormat('fa-IR').format(Number(n||0));
+const category=x=>(x.group==='closet'?clothes:beauty).find(c=>c[0]===x.category)||['other','سایر','🎀'];
+const nowMillis=()=>Date.now();
+function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(dbName,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('items'))req.result.createObjectStore('items',{keyPath:'id'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+function transact(mode,fn){return new Promise((resolve,reject)=>{const tx=db.transaction('items',mode),s=tx.objectStore('items');let request;try{request=fn(s)}catch(err){reject(err);return}request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);tx.onerror=()=>reject(tx.error)})}
+async function loadItems(){state.items=(await transact('readonly',s=>s.getAll())).sort((a,b)=>b.created-a.created)}
+async function storeItem(i){await transact('readwrite',s=>s.put(i));await loadItems()}
+async function removeItem(id){await transact('readwrite',s=>s.delete(id));await loadItems()}
+function imgUrl(item){if(!item||!item.photo)return '';const u=URL.createObjectURL(item.photo);photoUrls.push(u);return u}
+function clearUrls(){photoUrls.forEach(u=>URL.revokeObjectURL(u));photoUrls=[]}
+function photo(item,fallback){const src=imgUrl(item);return src?'<img src="'+esc(src)+'" alt="'+esc(item.name)+'" loading="lazy">':'<span aria-hidden="true">'+(fallback||category(item)[2])+'</span>'}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>t.classList.add('hidden'),3200)}
+function hero(){return '<section class="hero"><span class="eyebrow">✨ دنیای کوچولوی خودت</span><h1>هر روز خوشگل‌تر، با چیزایی که داری!</h1><p>لباس‌هات، وسایل آرایشت و ایده‌های قشنگ، همه یه جا.</p><button class="btn btn-white" data-route="closet">بریم سراغ کمدم ♡</button><div class="hero-art" aria-hidden="true"><span class="hanger">✨</span><span class="dress">👗</span><span class="bow">🎀</span></div></section>'}
+function summary(){const c=state.items.filter(x=>x.group==='closet').length,b=state.items.filter(x=>x.group==='beauty').length,a=state.items.filter(x=>x.group==='beauty'&&expiryDays(x)!=null&&expiryDays(x)<=30).length;return '<div class="summary-row"><div class="summary"><b>'+faNum(c)+'</b><small>توی کمدم</small></div><div class="summary"><b>'+faNum(b)+'</b><small>میز آرایشم</small></div><div class="summary"><b>'+faNum(a)+'</b><small>نیازمند بررسی</small></div></div>'}
+function expiryDays(x){if(!x.opened||!Number(x.pao))return null;const d=new Date(x.opened+'T12:00:00');if(Number.isNaN(d.getTime()))return null;d.setMonth(d.getMonth()+Number(x.pao));return Math.ceil((d.getTime()-Date.now())/86400000)}
+function expiryNote(x){const d=expiryDays(x);return d==null?'':d<0?'مدت درج‌شده روی محصول گذشته':d<=30?'حدود '+faNum(d)+' روز تا پایان مدت مصرف':'تا '+faNum(d)+' روز طبق PAO'}
+function home(){const few=state.items.slice(0,4);return '<div class="content-stack">'+hero()+'<div class="section-head"><h2>گوشه‌های خوشگل من 💕</h2></div><div class="tile-grid"><button class="tile" data-route="closet"><span class="emoji">👗</span><strong>کمد لباس من</strong><small>لباس‌ها و ست‌های خوشگل</small></button><button class="tile lilac" data-route="beauty"><span class="emoji">💄</span><strong>میز آرایشم</strong><small>آرایش و مراقبت از خودم</small></button><button class="tile peach" data-action="make-look"><span class="emoji">✨</span><strong>ست امروز</strong><small>با لباس‌های خودم</small></button><button class="tile ice" data-route="shop"><span class="emoji">🛍️</span><strong>خریدهای قشنگ</strong><small>وستا و کیوتلا</small></button></div><div class="section-head"><h2>وسایل من در یک نگاه</h2></div>'+summary()+'<div class="section-head"><h2>تازه اضافه‌شده‌ها</h2><button class="see-all" data-route="closet">همه وسایل ←</button></div>'+(few.length?'<div class="collection">'+few.map(itemCard).join('')+'</div>':'<div class="empty"><span class="icon">🧸</span><h3>اینجا هنوز یه‌کم خالیه!</h3><p>اولین لباس یا وسیله آرایشت رو اضافه کن تا دنیای شخصی خودت رو بسازیم.</p><button class="btn btn-primary" data-add="closet">اولین وسیله رو اضافه کن</button></div>')+'</div>'}
+function header(title,subtitle,group){return '<div class="page-header"><div><p class="kicker">MY LITTLE WORLD ✨</p><h1 class="heading">'+title+'</h1><p class="sub">'+subtitle+'</p></div><button class="fab" data-add="'+group+'">＋ اضافه کن</button></div>'}
+function itemCard(x){let note=x.group==='beauty'?expiryNote(x):category(x)[1];return '<article class="item"><div class="item-image">'+photo(x)+'</div><button class="delete" aria-label="حذف '+esc(x.name)+'" data-delete="'+esc(x.id)+'">×</button><h3>'+esc(x.name)+'</h3><small><i class="color-dot" style="background:'+colors[x.color||'other'][1]+'"></i>'+esc(note||category(x)[1])+'</small></article>'}
+function chips(items){return '<div class="chips">'+items.map(x=>'<button class="chip '+(state.filter===x[0]?'active':'')+'" data-filter="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'}
+function itemsPage(group){const isBeauty=group==='beauty';const tabs=isBeauty?beauty:clothes;let items=state.items.filter(x=>x.group===group);if(state.filter!=='all')items=items.filter(x=>x.category===state.filter);return header(isBeauty?'میز آرایشم 💄':'کمد قشنگم 👗',isBeauty?'همه خوشگلا و روتین‌های من یه جا':'از لباس‌هات ست‌های تازه بساز!',group)+chips([['all','همه'],...tabs.map(x=>[x[0],x[1]])])+(items.length?'<div class="collection">'+items.map(itemCard).join('')+'</div>':'<div class="empty"><span class="icon">'+(isBeauty?'🧴':'👚')+'</span><h3>'+(state.filter==='all'?'فعلاً چیزی اضافه نکردی':'این دسته هنوز خالیه')+'</h3><p>با زدن دکمه اضافه کن می‌تونی عکس و اطلاعات وسیله‌ات رو ثبت کنی.</p><button class="btn btn-primary" data-add="'+group+'">＋ اضافه کردن</button></div>')+(isBeauty?routineBlock():'<div class="section-head"><h2>ایده برای امروز ✨</h2></div><div class="tip"><strong>از لباس‌های موجودت شروع کنیم!</strong><p>چندتا لباس ثبت کن تا براساس نوع و رنگ، یه ترکیب پیشنهادی بسازیم.</p><button class="btn btn-outline" data-action="make-look">ساخت ست من</button></div>')}
+function routineBlock(){const am=state.items.filter(x=>x.group==='beauty'&&['am','both'].includes(x.routine));const pm=state.items.filter(x=>x.group==='beauty'&&['pm','both'].includes(x.routine));const warnings=state.items.filter(x=>x.group==='beauty'&&expiryDays(x)!=null&&expiryDays(x)<=30);return '<div class="section-head"><h2>روتین‌های کوچولوی من 🌷</h2></div><div class="content-stack"><div class="card routine"><div><strong>☀️ روتین صبح</strong><p class="sub">'+(am.length?esc(am.map(x=>x.name).join('، ')):'هنوز محصولی برای صبح انتخاب نکردی')+'</p></div><span class="emoji">🌤️</span></div><div class="card routine"><div><strong>🌙 روتین شب</strong><p class="sub">'+(pm.length?esc(pm.map(x=>x.name).join('، ')):'هنوز محصولی برای شب انتخاب نکردی')+'</p></div><span class="emoji">🌙</span></div>'+(warnings.length?'<div class="tip"><strong>یادآوری مصرف 🧸</strong><p>'+esc(warnings.map(x=>x.name).join('، '))+' نیاز به بررسی تاریخ مصرف دارن. تاریخ درج‌شده روی بسته‌بندی رو ملاک قرار بده.</p></div>':'')+'</div>'}
+const compatible=(a,b)=>a.color===b.color||['black','white','cream','brown'].includes(a.color)||['black','white','cream','brown'].includes(b.color);
+function makeLook(){const clothesOnly=state.items.filter(x=>x.group==='closet');const grouped=c=>clothesOnly.filter(x=>x.category===c);const dress=grouped('dress'),tops=grouped('top'),bottoms=grouped('bottom'),outer=grouped('outer'),shoes=grouped('shoes'),bags=grouped('bag'),jewels=grouped('jewel');const seed=Math.floor(Date.now()/86400000),pick=a=>a.length?a[seed%a.length]:null;let outfit=[];if(tops.length&&bottoms.length){let top=pick(tops),bottom=bottoms.find(x=>compatible(top,x))||pick(bottoms);outfit.push(top,bottom)}else if(dress.length){outfit=[pick(dress)]}else if(clothesOnly.length){outfit=[clothesOnly[seed%clothesOnly.length]]}if(outer.length)outfit.push(pick(outer));if(shoes.length)outfit.push(pick(shoes));if(bags.length)outfit.push(pick(bags));if(jewels.length)outfit.push(pick(jewels));const unique=[...new Map(outfit.filter(Boolean).map(x=>[x.id,x])).values()];state.look=unique;route('look')}
+function lookView(){const look=state.look||[];return '<div class="page-header"><div><p class="kicker">A LITTLE MAGIC ✨</p><h1 class="heading">ست امروز من</h1><p class="sub">پیشنهاد ساده بر اساس دسته و رنگ لباس‌هات</p></div><button class="fab" data-action="make-look">↻ ست جدید</button></div>'+(look.length?'<div class="card"><div class="look-grid">'+look.map(x=>'<div class="look-tile">'+photo(x)+'<small>'+esc(x.name)+'</small></div>').join('')+'</div><p class="small-note">این ترکیب به‌صورت خودکار از وسایل ثبت‌شده انتخاب شده، نه پرو مجازی یا نتیجه یک مدل هوش مصنوعی.</p></div>':'<div class="empty"><span class="icon">👗</span><h3>هنوز لباس کافی نداریم</h3><p>چندتا لباس اضافه کن تا بتونیم یه ست واقعی از کمد خودت بسازیم.</p><button class="btn btn-primary" data-add="closet">اضافه کردن لباس</button></div>')+'<div class="section-head"><h2>به یه چیز جدید احتیاج داری؟ 🎀</h2></div><div class="tip"><p>اول با وسایل خودت ست بساز، بعد برای تکمیلش از کیوتلا یا وستا ایده بگیر.</p><button class="btn btn-outline" data-route="shop">دیدن فروشگاه</button></div>'}
+function safeProductLink(p){try{const u=new URL(p.permalink);const valid=Object.values(shopHosts).some(h=>u.hostname===h||u.hostname==='www.'+h);return u.protocol==='https:'&&valid?u.toString():null}catch{return null}}
+function productCard(p){const price=p.price!=null?faNum(p.price)+' تومان':'قیمت در فروشگاه';const link=safeProductLink(p);const image=p.image&&p.image.startsWith('/api/market/image?')?'<img loading="lazy" src="'+esc(p.image)+'" alt="'+esc(p.name)+'">':'<span>🛍️</span>';return '<article class="item product"><div class="item-image">'+image+'</div><h3 title="'+esc(p.name)+'">'+esc(p.name)+'</h3><small><span class="store-pill">'+(p.store==='vesta'?'وستا':'کیوتلا')+'</span> '+(p.is_in_stock?'موجود':'ناموجود')+'</small><div class="price">'+esc(price)+'</div>'+(link?'<a class="btn btn-primary action" href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">دیدن محصول ↗</a>':'<button class="btn btn-outline action" disabled>لینک موجود نیست</button>')+'</article>'}
+function shopView(){let items=state.products.filter(p=>state.store==='all'||p.store===state.store);return '<div class="page-header"><div><p class="kicker">SHOP THE CUTENESS</p><h1 class="heading">خریدهای خوشگل 🛍️</h1><p class="sub">انتخاب‌های واقعی از وستا و کیوتلا</p></div></div><div class="shop-banner"><a href="https://vesta-cosmetics.ir" target="_blank" rel="noopener noreferrer" class="shop-store"><span>💗</span><b>وستا</b><small>آرایش و مراقبت</small></a><a href="https://cutellashop.ir" target="_blank" rel="noopener noreferrer" class="shop-store cutella"><span>🎀</span><b>کیوتلا</b><small>لباس و اکسسوری</small></a></div><input class="search" type="search" id="productSearch" placeholder="دنبال چی می‌گردی؟" value="'+esc(state.query)+'" aria-label="جستجوی محصول">'+ '<div class="chips">'+[['all','هر دو'],['vesta','وستا'],['cutella','کیوتلا']].map(x=>'<button class="chip '+(state.store===x[0]?'active':'')+'" data-store="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+(state.marketError?'<div class="product-error">'+esc(state.marketError)+'<br><button class="btn btn-outline" data-action="refresh-shop">تلاش دوباره</button></div>':items.length?'<div class="collection">'+items.map(productCard).join('')+'</div>':'<div class="empty"><span class="icon">🛒</span><h3>در حال پیدا کردن محصولات</h3><p>اگه چیزی نمی‌بینی، جستجو رو تغییر بده یا دوباره تلاش کن.</p><button class="btn btn-outline" data-action="refresh-shop">بارگذاری محصولات</button></div>')+'<p class="small-note">قیمت و موجودی از فروشگاه‌ها دریافت می‌شود و ممکن است تا مرحله خرید تغییر کند. پرداخت و ثبت سفارش در سایت همان فروشگاه انجام می‌شود.</p>'}
+function meView(){return '<div class="page-header"><div><p class="kicker">MY COZY SPACE</p><h1 class="heading">گوشه شخصی من 🧸</h1><p class="sub">دنیای تو، وسایل تو، انتخاب تو</p></div></div><div class="card"><div class="routine"><div><h2>وسایل خوشگل من 💗</h2><p class="sub">آمار کمد و میز آرایشت</p></div><span class="emoji">🎀</span></div><div class="divider"></div>'+summary()+'</div><div class="section-head"><h2>حریم خصوصی و داده‌ها 🔒</h2></div><div class="card privacy-list"><p>🔒 عکس‌ها و اطلاعات وسایل فقط در حافظه همین دستگاه ذخیره می‌شن.</p><p>☁️ در این نسخه همگام‌سازی ابری و تشخیص AI فعال نیست.</p><p>👭 بخش کامیونیتی و پست‌های عمومی غیرفعال شده.</p><p>🛒 سفارش‌های فروشگاهی از طریق سایت رسمی هر فروشگاه ثبت می‌شن.</p><button class="btn btn-outline btn-block" data-action="export">📦 پشتیبان‌گیری از وسایل من</button><label class="btn btn-outline btn-block">📥 بازگردانی پشتیبان<input type="file" id="importData" accept="application/json" hidden></label><button class="btn btn-outline btn-block" data-action="clear">حذف همه وسایل این دستگاه</button></div><p class="small-note">این نسخه دسترسی اجباری به مخاطبین، موقعیت مکانی یا اطلاعات شخصی نداره. پاک کردن داده‌های مرورگر یا برنامه ممکنه وسایل ذخیره‌شده رو حذف کنه؛ بهتره ازشون پشتیبان بگیری.</p>'}
+function route(name){state.route=name;if(name==='closet'||name==='beauty')state.filter='all';clearUrls();const content={home,closet:()=>itemsPage('closet'),beauty:()=>itemsPage('beauty'),look:lookView,shop:shopView,me:meView};$('#appContent').innerHTML=(content[name]||home)();document.querySelectorAll('[data-route]') .forEach(x=>x.classList.toggle('active',x.dataset.route===name));window.scrollTo({top:0,behavior:'instant'});if(name==='shop'&&!state.products.length)refreshShop()}
+function rerender(){const r=state.route;route(r)}
+function openEditor(group){state.type=group;pendingImage=null;$('#itemForm').reset();$('#itemOpened').value=today();$('#itemCategory').innerHTML=(group==='beauty'?beauty:clothes).map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');$('#beautyFields').classList.toggle('hidden',group!=='beauty');$('#dialogTitle').textContent=group==='beauty'?'یه خوشگل جدید برای میز آرایش 💄':'یه لباس جدید برای کمدم 👗';$('#photoPreview').innerHTML='<span>📸</span><small>عکس وسیله‌ات رو بذار</small>';$('#editorDialog').classList.remove('hidden');document.body.style.overflow='hidden';$('#itemName').focus()}
+function closeEditor(){$('#editorDialog').classList.add('hidden');document.body.style.overflow='';pendingImage=null}
+async function compressImage(file){if(file.size>15*1024*1024)throw Error('عکس بزرگه؛ لطفاً عکس زیر ۱۵ مگابایت انتخاب کن.');if(!file.type.startsWith('image/'))throw Error('فقط عکس قابل انتخابه.');let bitmap;try{bitmap=await createImageBitmap(file)}catch{throw Error('این فرمت عکس روی دستگاه پشتیبانی نمی‌شه؛ عکس JPG یا PNG انتخاب کن.')}const scale=Math.min(1,1200/Math.max(bitmap.width,bitmap.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bitmap.width*scale));c.height=Math.max(1,Math.round(bitmap.height*scale));c.getContext('2d').drawImage(bitmap,0,0,c.width,c.height);bitmap.close();return new Promise((res,rej)=>c.toBlob(x=>x?res(x):rej(Error('پردازش عکس انجام نشد.')),'image/jpeg',.78))}
+async function photoChanged(file){if(!file)return;try{pendingImage=await compressImage(file);const u=URL.createObjectURL(pendingImage);$('#photoPreview').innerHTML='<img src="'+esc(u)+'" alt="پیش‌نمایش عکس انتخاب‌شده">';setTimeout(()=>URL.revokeObjectURL(u),15000)}catch(err){toast(err.message)}}
+async function submitForm(e){e.preventDefault();const name=$('#itemName').value.trim();if(!name){toast('اسم وسیله رو بنویس.');return}const item={id:crypto.randomUUID?crypto.randomUUID():String(nowMillis()),group:state.type,name,category:$('#itemCategory').value,color:$('#itemColor').value,brand:$('#itemBrand').value.trim(),photo:pendingImage,opened:state.type==='beauty'?$('#itemOpened').value:'',pao:state.type==='beauty'?Number($('#itemPAO').value):0,routine:state.type==='beauty'?$('#itemRoutine').value:'none',created:nowMillis()};try{await storeItem(item);closeEditor();route(state.type);toast('به دنیای خودت اضافه شد 💕')}catch(err){toast('ذخیره انجام نشد؛ حافظه دستگاه رو بررسی کن.')}}
+async function deleteItem(id){const item=state.items.find(x=>x.id===id);if(!item||!confirm('«'+item.name+'» از وسایلت حذف بشه؟'))return;await removeItem(id);rerender();toast('حذف شد')}
+async function refreshShop(){const seq=++marketSeq;state.marketError='';try{const q=new URLSearchParams({store:state.store,per_page:'30'});if(state.query.trim())q.set('search',state.query.trim());const resp=await fetch('/api/market/products?'+q.toString(),{cache:'no-store'});if(!resp.ok)throw Error('ارتباط با محصولات فروشگاه برقرار نشد.');const j=await resp.json();if(seq!==marketSeq)return;state.products=Array.isArray(j.items)?j.items:[];if(j.errors&&Object.keys(j.errors).length)state.marketError='یکی از فروشگاه‌ها موقتاً در دسترس نیست.'}catch(err){if(seq!==marketSeq)return;state.products=[];state.marketError=err.message+' می‌تونی مستقیماً از لینک فروشگاه‌ها استفاده کنی.'}if(state.route==='shop')rerenderShop()}
+function rerenderShop(){clearUrls();$('#appContent').innerHTML=shopView()}
+async function exportData(){try{const rows=[];for(const x of state.items){const y={...x};if(x.photo){y.photo=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(x.photo)})}rows.push(y)}const url=URL.createObjectURL(new Blob([JSON.stringify({schema:1,exported:today(),items:rows})],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='vestaland-backup-'+today()+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('نسخه پشتیبان آماده شد 💕')}catch(e){toast('ساخت پشتیبان موفق نبود')}}
+async function importData(file){if(!file)return;if(file.size>25*1024*1024){toast('فایل پشتیبان خیلی بزرگه.');return}try{const b=JSON.parse(await file.text());if(b.schema!==1||!Array.isArray(b.items)||b.items.length>3000)throw Error('فرمت فایل معتبر نیست.');if(!confirm('وسایل داخل این فایل به وسایل فعلی اضافه بشن؟'))return;for(const x of b.items){if(!['closet','beauty'].includes(x.group)||typeof x.name!=='string'||x.name.length>90)continue;let photo=null;if(typeof x.photo==='string'&&x.photo.startsWith('data:image/')){const blob=await fetch(x.photo).then(r=>r.blob());if(blob.size<2*1024*1024)photo=blob}await transact('readwrite',s=>s.put({id:String(x.id||nowMillis()),group:x.group,name:x.name,category:String(x.category||'other'),color:colors[x.color]?x.color:'other',brand:String(x.brand||'').slice(0,55),opened:String(x.opened||''),pao:Number(x.pao||0),routine:String(x.routine||'none'),created:Number(x.created||nowMillis()),photo}))}await loadItems();rerender();toast('وسایلت برگردونده شدن 💕')}catch(err){toast('خواندن فایل پشتیبان ممکن نشد')}}
+document.addEventListener('click',async e=>{const b=e.target.closest('button,a');if(!b)return;if(b.hasAttribute('data-close')){closeEditor();return}if(b.dataset.route){e.preventDefault();route(b.dataset.route);return}if(b.dataset.add){openEditor(b.dataset.add);return}if(b.dataset.delete){await deleteItem(b.dataset.delete);return}if(b.dataset.filter){state.filter=b.dataset.filter;rerender();return}if(b.dataset.store){state.store=b.dataset.store;state.products=[];rerenderShop();refreshShop();return}if(b.dataset.action==='make-look'){makeLook();return}if(b.dataset.action==='refresh-shop'){refreshShop();return}if(b.dataset.action==='export'){exportData();return}if(b.dataset.action==='clear'&&confirm('همه لباس‌ها و وسایل آرایشی ذخیره‌شده در همین دستگاه حذف بشن؟ این کار قابل بازگشت نیست مگر پشتیبان داشته باشی.')){for(const x of state.items)await removeItem(x.id);route('me');toast('همه وسایل حذف شدن')}});
+$('#aboutBtn').addEventListener('click',()=>{route('me')});
+$('#itemForm').addEventListener('submit',submitForm);
+$('#itemPhoto').addEventListener('change',e=>photoChanged(e.target.files[0]));
+document.addEventListener('change',e=>{if(e.target.id==='importData')importData(e.target.files[0])});
+let searchTimer;document.addEventListener('input',e=>{if(e.target.id==='productSearch'){state.query=e.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.products=[];refreshShop()},450)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor()});
+async function boot(){try{db=await openDb();await loadItems();route('home')}catch(err){$('#appContent').innerHTML='<div class="empty"><span class="icon">🔒</span><h3>حافظه دستگاه در دسترس نیست</h3><p>برای نگهداری امن وسایلت، اجازه ذخیره‌سازی مرورگر یا اپ رو فعال کن و دوباره بازش کن.</p></div>'}if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}
+boot();
+})();
