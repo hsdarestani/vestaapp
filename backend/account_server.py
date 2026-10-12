@@ -331,8 +331,11 @@ def market_api(kind,store,items,address=None):
     if not isinstance(quote,dict) or not quote.get("ok"):
         raise Error("استعلام فروشگاه معتبر نبود.",502)
     gateways=[str(x) for x in (quote.get("payment_methods") or [])]
-    zibal=next((g for g in gateways if "zibal" in g.lower()),None)
-    if not zibal:raise Error("درگاه زیبال برای این فروشگاه در خرید درون اپ فعال نیست.",503)
+    # Actual live cart capabilities verified 2026-10-12:
+    # Vesta uses wc_zibal, Cutella uses WC_ZPal. Keep each merchant's own gateway.
+    allowed_methods={"vesta":("wc_zibal",),"cutella":("wc_zibal","wc_zpal")}
+    method=next((g for g in gateways if g.lower() in allowed_methods[store]),None)
+    if not method:raise Error("درگاه پرداخت این فروشگاه در خرید درون اپ پشتیبانی نمی‌شود.",503)
     if kind=="quote":return quote
     if kind!="checkout":raise Error("عملیات نامعتبر است.",400)
     if not isinstance(address,dict):raise Error("آدرس معتبر نیست.")
@@ -341,7 +344,7 @@ def market_api(kind,store,items,address=None):
     if any(not a[k] for k in needed):raise Error("اطلاعات آدرس رو کامل وارد کن.")
     a["country"]="IR"
     payload["billing_address"]=a;payload["shipping_address"]=a
-    payload["payment_method"]=zibal
+    payload["payment_method"]=method
     # WooCommerce creates its own order, Zibal payment and on-site callbacks;
     # never copy products into another table as the source of truth.
     return json_http(MARKET_URL+"/api/market/checkout",payload,timeout=35)
