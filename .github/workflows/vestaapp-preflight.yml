@@ -1,0 +1,76 @@
+name: Vestaapp new-server preflight (read only)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/vestaapp-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify DNS and deployment target
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          expected='193.177.242.64'
+          dns_ip="$(getent ahostsv4 app.vesta-cosmetics.ir | awk 'NR==1 {print $1}')"
+          if [[ "$dns_ip" != "$expected" ]]; then
+            echo "::error::DNS for app.vesta-cosmetics.ir does not yet resolve to the Vesta server ($expected)"
+            exit 1
+          fi
+          echo "Subdomain DNS resolves to the expected Vesta server."
+          [[ -n "${HOST:-}" ]] || { echo "::error::Missing HOST secret"; exit 1; }
+          [[ -n "${PASS:-}" ]] || { echo "::error::Missing PASS secret"; exit 1; }
+          [[ -n "${SSH_KNOWN_HOSTS:-}" ]] || { echo "::error::Missing SSH_KNOWN_HOSTS secret; do not disable host key checking"; exit 1; }
+          remote="${HOST##*@}"
+          remote_ip="$(getent ahostsv4 "$remote" | awk 'NR==1 {print $1}')"
+          [[ "$remote_ip" == "$expected" ]] || { echo "::error::HOST secret does not target Vesta's $expected server"; exit 1; }
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          echo "Secrets are present and SSH destination matches new Vesta server."
+
+      - name: Install SSH password transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Inspect remote server without making changes
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+        run: |
+          set -euo pipefail
+          target="$HOST"
+          [[ "$target" == *"@"* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=12 -o BatchMode=no "$target" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo "Connected to Vesta server"
+          docker network inspect vestacutella-backend >/dev/null || { echo "::error::VestaCutella Docker network missing"; exit 1; }
+          for c in vc-nginx vc-vesta vc-cutella vc-db-vesta vc-db-cutella; do
+            status="$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || true)"
+            printf 'Store container %s: %s\n' "$c" "${status:-missing}"
+            [[ "$status" == "running" ]] || { echo "::error::Store container missing/not running ($c)"; exit 1; }
+          done
+          test -s /srv/vestacutella/repo/infra/nginx.conf || { echo "::error::VestaCutella nginx.conf not found at expected path"; exit 1; }
+          docker exec vc-nginx nginx -t >/dev/null || { echo "::error::Store Nginx config invalid before app deploy"; exit 1; }
+          for src in app-vesta vesta; do
+            cert="/srv/vestacutella/runtime/certs/$src/fullchain.pem"
+            key="/srv/vestacutella/runtime/certs/$src/privkey.pem"
+            if [[ -s "$cert" && -s "$key" ]] && openssl x509 -in "$cert" -noout -checkhost app.vesta-cosmetics.ir >/dev/null 2>&1; then
+              echo "TLS certificate for app.vesta-cosmetics.ir found ($src)."
+              exit 0
+            fi
+          done
+          echo "::error::No origin TLS certificate for app.vesta-cosmetics.ir found. Install a valid certificate before deployment. Existing stores were not changed."
+          exit 1
+          REMOTE
