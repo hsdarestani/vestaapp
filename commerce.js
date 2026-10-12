@@ -204,10 +204,10 @@ async function buy(form){
  const fd=new FormData(form),address=Object.fromEntries(fd.entries());
  S.loading=true;S.error='';renderModal();
  try{
-  const key=crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2);
+  const key=S.checkoutRequestId||(S.checkoutRequestId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)));
   const out=await api('orders/checkout',{body:{store:S.store,items:S.cart[S.store].map(x=>({id:x.id,quantity:x.quantity})),billing_address:address,request_id:key}});
   if(!out.redirect_url?.startsWith('https://'))throw Error('لینک پرداخت امن دریافت نشد.');
-  S.cart[S.store]=[];persistCart();location.assign(out.redirect_url);
+  S.cart[S.store]=[];persistCart();S.checkoutRequestId=null;location.assign(out.redirect_url);
  }catch(e){S.error=e.message;S.loading=false;renderModal()}
 }
 async function askAi(form){
@@ -264,7 +264,7 @@ window.VestalandCommerce={
   const arr=S.cart[product.store],existing=arr.find(x=>x.id===product.id);
   if(existing)existing.quantity=Math.min(10,existing.quantity+1);
   else arr.push({id:product.id,name:product.name,quantity:1,price:product.price});
-  S.store=product.store;persistCart();notify('به سبد خریدت اضافه شد 💕');decorate();
+  S.store=product.store;S.checkoutRequestId=null;persistCart();notify('به سبد خریدت اضافه شد 💕');decorate();
  },
  open
 };
@@ -274,10 +274,10 @@ document.addEventListener('click',event=>{
  if(b.hasAttribute('data-commerce-back')){S.otp=false;renderModal();return}
  if(b.dataset.commerceOpen){event.preventDefault();if(b.dataset.commerceOpen==='orders')loadOrders();else open(b.dataset.commerceOpen);return}
  if(b.dataset.payplan){event.preventDefault();startPayment(b.dataset.payplan);return}
- if(b.dataset.cartstore){S.store=b.dataset.cartstore;renderModal();return}
+ if(b.dataset.cartstore){S.store=b.dataset.cartstore;S.checkoutRequestId=null;renderModal();return}
  if(b.dataset.qty){
   const row=S.cart[S.store].find(x=>x.id===Number(b.dataset.productid));
-  if(row){row.quantity=Math.max(0,Math.min(10,row.quantity+Number(b.dataset.qty)));S.cart[S.store]=S.cart[S.store].filter(x=>x.quantity>0);persistCart();renderModal()}
+  if(row){row.quantity=Math.max(0,Math.min(10,row.quantity+Number(b.dataset.qty)));S.cart[S.store]=S.cart[S.store].filter(x=>x.quantity>0);S.checkoutRequestId=null;persistCart();renderModal()}
   return;
  }
  if(b.hasAttribute('data-commerce-quote')){quote();return}
