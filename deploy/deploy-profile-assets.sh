@@ -20,7 +20,7 @@ cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
 tar -xzf "$PACKAGE" -C "$STAGE"
 assets=(index.html app.js styles.css sw.js)
-for file in "\${assets[@]}"; do
+for file in "${assets[@]}"; do
   [[ -s "$STAGE/$file" ]] || { echo "Missing asset: $file"; exit 1; }
   cp -p "$PUBLIC/$file" "$BACKUP/$file"
 done
@@ -30,7 +30,7 @@ grep -q 'profile-banner' "$STAGE/styles.css"
 grep -q 'vestaland-personal-profile-v2' "$STAGE/sw.js"
 rollback(){
   echo "Rolling back only Vestaapp static assets."
-  for file in "\${assets[@]}"; do
+  for file in "${assets[@]}"; do
     if [[ -s "$BACKUP/$file" ]]; then
       cp "$BACKUP/$file" "$PUBLIC/.$file.rollback"
       chmod 644 "$PUBLIC/.$file.rollback"
@@ -38,7 +38,7 @@ rollback(){
     fi
   done
 }
-for file in "\${assets[@]}"; do
+for file in "${assets[@]}"; do
   cp "$STAGE/$file" "$PUBLIC/.$file.release"
   chmod 644 "$PUBLIC/.$file.release"
   mv -f "$PUBLIC/.$file.release" "$PUBLIC/$file"
