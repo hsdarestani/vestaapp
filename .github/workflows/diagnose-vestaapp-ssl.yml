@@ -54,4 +54,15 @@ jobs:
           echo '=== Nginx and webroot ==='
           docker exec vc-nginx nginx -t
           ls -ld /srv/vestaapp/current /srv/vestaapp/current/public
+          echo '=== Host vhost markers ==='
+          grep -n -A24 -B2 'BEGIN VESTAAPP' /srv/vestacutella/repo/infra/nginx.conf || true
+          echo '=== In-container vhost markers ==='
+          docker exec vc-nginx sh -c 'grep -n -A24 -B2 "BEGIN VESTAAPP" /etc/nginx/nginx.conf' || true
+          echo '=== Active parsed Nginx configuration ==='
+          docker exec vc-nginx sh -c 'nginx -T 2>&1 | grep -A24 -B2 "BEGIN VESTAAPP"' || true
+          echo '=== Nginx container port bindings ==='
+          docker inspect --format '{{json .NetworkSettings.Ports}}' vc-nginx
+          echo '=== Direct localhost route (ignore certificate temporarily) ==='
+          curl -ksSI --max-time 10 --resolve app.vesta-cosmetics.ir:443:127.0.0.1 https://app.vesta-cosmetics.ir/ | head -n 10 || true
+          curl -sSI --max-time 10 --resolve app.vesta-cosmetics.ir:80:127.0.0.1 http://app.vesta-cosmetics.ir/ | head -n 10 || true
           REMOTE
