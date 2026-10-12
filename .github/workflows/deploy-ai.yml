@@ -1,6 +1,10 @@
 name: Deploy Vestaland Cloudflare AI
 on:
   workflow_dispatch:
+  push:
+    branches: [feature/auth-subscriptions-ai-native-orders]
+    paths:
+      - '.github/workflows/deploy-ai.yml'
 permissions:
   contents: read
 concurrency:
@@ -20,8 +24,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           AI_SHARED: ${{ secrets.CF_AI_SHARED_SECRET }}
+          ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
         run: |
           set -euo pipefail
+          test -n "${ZIBAL_MERCHANT:-}" || { echo "Missing ZIBAL_MERCHANT"; exit 1; }
           node --check cloudflare/src/index.js
           python3 -m json.tool cloudflare/wrangler.jsonc >/dev/null
           test -n "${CLOUDFLARE_API_TOKEN:-}"
