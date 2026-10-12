@@ -396,6 +396,9 @@ def checkout(user,store,items,address,request_id):
         # Restrict redirect to the merchant or recognized Iranian payment gateway.
         host=urllib.parse.urlparse(url).hostname or ""
         allowed={"gateway.zibal.ir","vesta-cosmetics.ir","www.vesta-cosmetics.ir","cutellashop.ir","www.cutellashop.ir"}
+        if store=="cutella":
+            # WC_ZPal commonly returns direct ZarinPal pay URLs.
+            allowed.update({"www.zarinpal.com","zarinpal.com","payment.zarinpal.com"})
         if host not in allowed:raise Error("لینک پرداخت فروشگاه معتبر نیست.",502)
         with conn() as c:c.execute("""INSERT INTO app_orders(user_id,request_id,store,order_id,order_key,payment_url,payment_status,created_at)
           VALUES(?,?,?,?,?,?,?,?)""",(user["id"],request_id,store,oid,str(response.get("order_key") or "")[:120],url,str(response.get("status") or "pending")[:32],now()))
