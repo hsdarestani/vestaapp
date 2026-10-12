@@ -1,10 +1,6 @@
 name: Deploy Vestaapp profile assets only
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'deploy/profile-release-once.flag'
 permissions:
   contents: read
 concurrency:
