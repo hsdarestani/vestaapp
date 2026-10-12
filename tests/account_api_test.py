@@ -65,6 +65,22 @@ class VestalandAccountTests(unittest.TestCase):
         self.assertEqual(next_login["user"]["trial_until"],first_expiration)
         self.assertFalse(next_login["user"]["active"])
 
+    def test_bazaar_receipt_must_be_verified_server_side(self):
+        user=self.create_user()
+        with patch.object(api.bazaar_verify,"ready",return_value=True),patch.object(api.bazaar_verify,"validate",return_value={
+            "expires_at":api.now()+30*86400,"sku":"vestaland_sub_1m"}):
+            result=api.verify_bazaar_receipt(user,"monthly","valid-token-unique-to-user")
+            self.assertTrue(result["user"]["active"])
+            other=self.create_user("09123456780")
+            with self.assertRaises(api.Error) as exc:
+                api.verify_bazaar_receipt(other,"monthly","valid-token-unique-to-user")
+            self.assertEqual(exc.exception.status,409)
+        with patch.object(api.bazaar_verify,"ready",return_value=True),patch.object(api.bazaar_verify,"validate",
+             side_effect=api.bazaar_verify.BazaarError("unverified")):
+            with self.assertRaises(api.Error) as exc:
+                api.verify_bazaar_receipt(user,"monthly","different-receipt-not-verified")
+            self.assertEqual(exc.exception.status,422)
+
     def test_zibal_amount_and_double_callback(self):
         user=self.create_user()
         calls=[]
