@@ -1,0 +1,57 @@
+name: Vestaland SMS and Zibal credential preflight (read only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/auth-subscriptions-ai-native-orders]
+    paths: ['.github/workflows/check-sms-zibal.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check presence and validate SMS.ir API key without sending SMS
+        env:
+          SMSIR_API_KEY: ${{ secrets.SMSIR_API_KEY }}
+          SMSIR_TEMPLATE_ID: ${{ secrets.SMSIR_TEMPLATE_ID }}
+          VESTALAND_OTP_PEPPER: ${{ secrets.VESTALAND_OTP_PEPPER }}
+          ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
+          CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          key=os.getenv("SMSIR_API_KEY","")
+          template=os.getenv("SMSIR_TEMPLATE_ID","")
+          pepper=os.getenv("VESTALAND_OTP_PEPPER","")
+          zibal=os.getenv("ZIBAL_MERCHANT","")
+          print("SMS.ir API key configured:",bool(key))
+          print("SMS.ir template configured:",bool(template))
+          print("SMS.ir template ID is numeric:",template.isdecimal())
+          print("OTP security pepper length valid:",len(pepper)>=32)
+          print("Zibal merchant configured:",bool(zibal))
+          print("Cloudflare backend shared secret length valid:",len(os.getenv("CF_AI_SHARED_SECRET",""))>=32)
+          if not key:
+              print("SMS.ir API validation skipped - missing key.")
+              raise SystemExit(1)
+          req=urllib.request.Request("https://api.sms.ir/v1/credit",headers={
+            "X-API-KEY":key,"Accept":"application/json","User-Agent":"Vestaland-ReadOnly-Preflight/1.0"})
+          try:
+              with urllib.request.urlopen(req,timeout=18) as r:
+                  status=r.status;j=json.load(r)
+          except urllib.error.HTTPError as e:
+              status=e.code
+              try:j=json.loads(e.read(12000))
+              except:j={}
+          except Exception as e:
+              print("SMS.ir credit GET unreachable:",type(e).__name__)
+              raise SystemExit(2)
+          # No API key, credit balance, message content or recipient phone logged.
+          print("SMS.ir GET /v1/credit HTTP:",status)
+          print("SMS.ir API status:",j.get("status") if isinstance(j,dict) else None)
+          if status!=200 or (isinstance(j,dict) and j.get("status") not in (1, "1", None)):
+              raise SystemExit("SMS.ir API credential not validated")
+          if not template.isdecimal() or len(pepper)<32 or not zibal:
+              raise SystemExit("Missing a required preflight secret.")
+          print("All read-only OTP and Zibal secret preflight checks passed; no SMS sent, no payment created.")
+          PY
