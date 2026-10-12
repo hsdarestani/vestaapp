@@ -38,6 +38,8 @@ async function api(path,opts={}){
 function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
+const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean(window.BazaarBridge);
+
 function open(kind){
  S.modal=kind;S.error='';renderModal();
 }
@@ -56,7 +58,7 @@ function statusText(){
 }
 function pricing(){
  const plans=S.config?.plans||[{id:'monthly',price_toman:199000,duration_days:30},{id:'quarterly',price_toman:499000,duration_days:90}];
- return '<div class="commerce-plans">'+plans.map(p=>'<div class="commerce-plan '+(p.id==='quarterly'?'featured':'')+'"><div><strong>'+(p.id==='monthly'?'🌸 ماهانه':'🎀 سه‌ماهه')+'</strong><small>'+(p.id==='monthly'?'۳۰ روز':'۹۰ روز')+'</small></div><b>'+toman(p.price_toman)+'</b><button class="btn btn-primary" data-payplan="'+p.id+'" '+(!S.token||!isEnabled('subscriptions_enabled')||S.loading?'disabled':'')+'>انتخاب پلن</button></div>').join('')+'</div>';
+ return '<div class="commerce-plans">'+plans.map(p=>'<div class="commerce-plan '+(p.id==='quarterly'?'featured':'')+'"><div><strong>'+(p.id==='monthly'?'🌸 ماهانه':'🎀 سه‌ماهه')+'</strong><small>'+(p.id==='monthly'?'۳۰ روز':'۹۰ روز')+'</small></div><b>'+toman(p.price_toman)+'</b><button class="btn btn-primary" data-payplan="'+p.id+'" '+(!S.token||!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))||S.loading?'disabled':'')+'>انتخاب پلن</button></div>').join('')+'</div>';
 }
 function loginView(){
  return '<div class="commerce-intro">🐰</div><p class="commerce-lead">با شماره موبایلت وارد شو و ۷ روز اول رو رایگان از امکانات وستالند استفاده کن!</p>'+
@@ -71,7 +73,8 @@ function plansView(){
  return '<p class="commerce-lead">'+safe(statusText())+'</p><p class="commerce-note">۷ روز اول رایگان برای هر شماره، فقط یک بار. هزینه اشتراک پس از انتخاب پلن دریافت می‌شود؛ تمدید خودکار فعال نیست.</p>'+
  pricing()+(S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  (!S.token?'<button class="btn btn-outline btn-block" data-commerce-open="login">اول وارد شو</button>':'')+
- (!isEnabled('subscriptions_enabled')?'<p class="commerce-warning">پرداخت اشتراک بعد از اتصال درگاه فعال می‌شود.</p>':'');
+ (isBazaarAndroid()?'<p class="commerce-note">پرداخت اشتراک نسخه کافه‌بازار فقط از طریق پرداخت امن خود بازار و تأیید سمت سرور انجام می‌شود.</p>':'')+
+ (!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))?'<p class="commerce-warning">پرداخت اشتراک بعد از اتصال و تأیید درگاه فعال می‌شود.</p>':'');
 }
 function accountView(){
  return '<div class="commerce-account-card">💗 '+safe(S.user?.phone||'')+'<p>'+safe(statusText())+'</p></div>'+
@@ -191,8 +194,15 @@ async function loginSubmit(form){
 }
 async function startPayment(plan){
  S.loading=true;S.error='';renderModal();
- try{const x=await api('subscription/start',{body:{plan}});localStorage.setItem(paymentKey,x.payment_id);location.assign(x.payment_url)}
- catch(e){S.error=e.message;S.loading=false;renderModal()}
+ try{
+   if(isBazaarAndroid()){
+     if(!isEnabled('bazaar_enabled')||!window.BazaarBridge)throw new Error('تأیید امن پرداخت کافه‌بازار هنوز فعال نشده.');
+     window.BazaarBridge.subscribe(plan==='monthly'?'1m':'3m');
+     S.loading=false;renderModal();return;
+   }
+   const x=await api('subscription/start',{body:{plan}});
+   localStorage.setItem(paymentKey,x.payment_id);location.assign(x.payment_url);
+ }catch(e){S.error=e.message;S.loading=false;renderModal()}
 }
 async function quote(){
  if(!allowed()){open(S.user?'plans':'login');return}
@@ -207,7 +217,7 @@ async function buy(form){
   const key=S.checkoutRequestId||(S.checkoutRequestId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)));
   const out=await api('orders/checkout',{body:{store:S.store,items:S.cart[S.store].map(x=>({id:x.id,quantity:x.quantity})),billing_address:address,request_id:key}});
   if(!out.redirect_url?.startsWith('https://'))throw Error('لینک پرداخت امن دریافت نشد.');
-  S.cart[S.store]=[];persistCart();S.checkoutRequestId=null;location.assign(out.redirect_url);
+  S.cart[S.store]=[];persistCart();S.checkoutRequestId=null;if(window.MarketBridge)window.MarketBridge.beginPayment();location.assign(out.redirect_url);
  }catch(e){S.error=e.message;S.loading=false;renderModal()}
 }
 async function askAi(form){
@@ -256,7 +266,17 @@ document.addEventListener('click',event=>{
    event.preventDefault();event.stopImmediatePropagation();open(S.user?'plans':'login');
  }
 },true);
+async function confirmBazaarPurchase(plan,purchaseToken){
+ if(!isBazaarAndroid()||!S.token||!['monthly','quarterly'].includes(plan))return;
+ S.modal='plans';S.loading=true;S.error='';renderModal();
+ try{
+   const receipt=await api('bazaar/verify',{body:{plan,purchase_token:String(purchaseToken||'')}});
+   if(!receipt.user?.active)throw new Error('رسید تأیید نشد.');
+   S.user=receipt.user;S.loading=false;notify('اشتراک بازار تأیید و فعال شد 🎀');close();decorate();
+ }catch(e){S.error='خرید ثبت شد اما تأیید اشتراک انجام نشده: '+e.message;S.loading=false;renderModal()}
+}
 window.VestalandCommerce={
+ confirmBazaarPurchase,
  addToCart(product){
   if(!product||!['vesta','cutella'].includes(product.store))return;
   if(product.has_options){notify('برای انتخاب رنگ یا سایز، صفحه محصول فروشگاه رو باز کن.');return}
