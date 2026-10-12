@@ -28,7 +28,7 @@ DB_FILE = os.getenv("VESTALAND_DB_PATH", "/var/lib/vestaapp/accounts.db")
 SMS_KEY = os.getenv("SMSIR_API_KEY", "")
 SMS_TEMPLATE = os.getenv("SMSIR_TEMPLATE_ID", "")
 ZIBAL_MERCHANT = os.getenv("ZIBAL_MERCHANT", "")
-CF_WORKER_URL = os.getenv("CF_AI_WORKER_URL", "")
+CF_WORKER_URL = os.getenv("CF_AI_WORKER_URL") or "https://vestaland-ai.hsdf7rb.workers.dev/"
 CF_AI_SHARED_SECRET = os.getenv("CF_AI_SHARED_SECRET", "")
 PUBLIC_BASE = "https://app.vesta-cosmetics.ir"
 MARKET_URL = "http://vc-vestaapp-market:8766"
@@ -327,7 +327,8 @@ def ai_recommend(user,items,question):
         c.execute("INSERT INTO ai_global(day,count) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET count=count+1",(day,))
     try:
         answer=json_http(CF_WORKER_URL,{"items":limited,"question":question},
-               {"Authorization":"Bearer "+CF_AI_SHARED_SECRET},timeout=23)
+               {"Authorization":"Bearer "+CF_AI_SHARED_SECRET,
+                "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"},timeout=23)
         if not answer.get("ok") or not str(answer.get("suggestion") or "").strip():raise Error("هوش مصنوعی پاسخ معتبری نداد.",502)
         return {"ok":True,"suggestion":str(answer["suggestion"])[:900],"limit":cap,
                 "remaining":max(0,cap-((u["count"] if u else 0)+1))}
