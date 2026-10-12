@@ -1,9 +1,6 @@
 name: Cloudflare credentials and access diagnostic
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/auth-subscriptions-ai-native-orders]
-    paths: ['.github/workflows/check-cloudflare-token.yml']
 permissions:
   contents: read
 jobs:
