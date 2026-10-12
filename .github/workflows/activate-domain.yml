@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'deploy/activate-domain-once.flag'
+      - '.github/workflows/activate-domain.yml'
 permissions:
   contents: read
 concurrency:
