@@ -1,10 +1,6 @@
 name: Verify Vestaland Cloudflare AI inference
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/auth-subscriptions-ai-native-orders]
-    paths:
-      - '.github/workflows/verify-ai.yml'
 permissions:
   contents: read
 jobs:
