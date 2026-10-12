@@ -1,0 +1,50 @@
+services:
+  app:
+    image: nginx:1.27-alpine
+    container_name: vc-vestaapp-web
+    restart: unless-stopped
+    depends_on:
+      market:
+        condition: service_healthy
+    volumes:
+      - /srv/vestaapp/current/public:/usr/share/nginx/html:ro
+      - /srv/vestaapp/current/deploy/app-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - vestacutella
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  market:
+    build:
+      context: /srv/vestaapp/current
+      dockerfile: deploy/market.Dockerfile
+    container_name: vc-vestaapp-market
+    restart: unless-stopped
+    environment:
+      VESTALAND_IMAGE_DIR: /var/lib/vestaapp/market-images
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - /srv/vestaapp/data/images:/var/lib/vestaapp/market-images
+    networks:
+      - vestacutella
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD","python3","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/api/market/health',timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 15s
+
+networks:
+  vestacutella:
+    external: true
+    name: vestacutella-backend
