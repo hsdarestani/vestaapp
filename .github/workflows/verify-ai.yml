@@ -32,6 +32,7 @@ jobs:
               if e.code not in (401,403):raise SystemExit('Unexpected unauthenticated response')
               print('Unauthenticated content-type:',e.headers.get('Content-Type','unknown'))
               print('Unauthenticated cf-mitigated:',e.headers.get('cf-mitigated','none'))
+              print('Unauthenticated response preview:',e.read(260).decode('utf-8','replace'))
           req=urllib.request.Request(url,data=data,headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['CF_AI_SHARED_SECRET']},method='POST')
           try:
               with urllib.request.urlopen(req,timeout=35) as r:
@@ -43,6 +44,7 @@ jobs:
               except: err='unparseable'
               print('Authenticated content-type:',e.headers.get('Content-Type','unknown'))
               print('Authenticated cf-mitigated:',e.headers.get('cf-mitigated','none'))
+              print('Authenticated response preview:',data[:260].decode('utf-8','replace'))
               raise SystemExit('AI inference unavailable: HTTP '+str(e.code)+' '+str(err)[:90])
           if result.get('ok') is not True or not isinstance(result.get('suggestion'),str) or not result['suggestion'].strip():
               raise SystemExit('AI response missing suggestion')
