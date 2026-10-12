@@ -1,0 +1,65 @@
+name: Activate Vestaapp app-domain TLS (controlled)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/activate-domain-once.flag'
+permissions:
+  contents: read
+concurrency:
+  group: vestaapp-app-domain-activation
+  cancel-in-progress: false
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts and live target
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          bash -n deploy/activate-app-domain.sh
+          docker compose -f deploy/compose.yml config -q
+          [[ -n "${HOST:-}" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          [[ "${HOST##*@}" == "193.177.242.64" ]]
+          [[ "$(getent ahostsv4 app.vesta-cosmetics.ir | awk 'NR==1{print $1}')" == "193.177.242.64" ]]
+          grep -Fq 'vc-vestaapp-market:8766' deploy/app-nginx.conf
+          grep -Fq 'location ^~ /.well-known/acme-challenge/' deploy/app-nginx.conf
+          grep -Fq '/srv/vestaapp/data/acme:/var/www/acme:ro' deploy/compose.yml
+      - name: Install SSH password transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Run guarded Nginx-only activation and certificate issuance
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          opts=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" ssh "${opts[@]}" "$target" 'mkdir -p /tmp/vestaapp-activation'
+          sshpass -p "$PASS" scp "${opts[@]}" deploy/app-nginx.conf "$target:/tmp/vestaapp-activation/app-nginx.conf"
+          sshpass -p "$PASS" scp "${opts[@]}" deploy/compose.yml "$target:/tmp/vestaapp-activation/compose.yml"
+          sshpass -p "$PASS" ssh "${opts[@]}" "$target" 'bash -s' < deploy/activate-app-domain.sh
+      - name: Verify public site and BOTH existing storefronts
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 --max-time 25 https://app.vesta-cosmetics.ir/ -o /tmp/vestaapp-index.html
+          grep -q 'وستالند' /tmp/vestaapp-index.html
+          curl --fail --silent --show-error --max-time 20 https://app.vesta-cosmetics.ir/api/market/health | grep -q '"ok":true'
+          for host in vesta-cosmetics.ir cutellashop.ir; do
+            status="$(curl --silent --show-error --output /dev/null --max-time 25 --write-out '%{http_code}' "https://$host/")"
+            echo "$host HTTP=$status"
+            [[ "$status" == "200" || "$status" == "301" || "$status" == "302" ]]
+          done
