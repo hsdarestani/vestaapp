@@ -20,7 +20,7 @@ BACKUP="$BASE/backups/commerce-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -p "$BACKUP"
 trap 'rm -rf "$STAGE"' EXIT
 tar -xzf "$ARCHIVE" -C "$STAGE"
-files=(public/index.html public/app.js public/styles.css public/commerce.js public/commerce.css public/sw.js backend/account_server.py deploy/account.Dockerfile deploy/compose.yml deploy/app-nginx.conf)
+files=(public/index.html public/app.js public/styles.css public/commerce.js public/commerce.css public/sw.js backend/account_server.py backend/bazaar_verify.py deploy/account.Dockerfile deploy/compose.yml deploy/app-nginx.conf)
 for file in "${files[@]}"; do
   test -s "$STAGE/$file" || { echo "Missing $file"; exit 1; }
 done
