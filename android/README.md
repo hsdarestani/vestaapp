@@ -3,10 +3,10 @@
 This directory contains the Android wrapper used for CafeBazaar distribution.
 
 - Package: `ir.vestaland.app`
-- Version name: `1.0.0`
-- Version code: `1`
+- Version name: `1.1.0`
+- Version code: `3`
 - Target SDK: `36`
-- Production URL: `https://vestaland.smarbiz.sbs/`
+- Production URL: `https://app.vesta-cosmetics.ir/`
 
 ## Signing
 
@@ -17,7 +17,7 @@ Never commit the signing keystore to the repository. Configure these GitHub Acti
 - `BAZAAR_KEY_ALIAS`
 - `BAZAAR_KEY_PASSWORD`
 
-Then run **Build CafeBazaar Android** from GitHub Actions. The workflow creates both a signed APK and AAB as the `vestaland-cafebazaar-1.0.0` artifact.
+Then run **Build CafeBazaar Android** from GitHub Actions. The workflow creates both a signed APK and AAB as the `vestaland-cafebazaar-1.1.0` artifact.
 
 The same signing key must be kept for every future CafeBazaar update.
 
