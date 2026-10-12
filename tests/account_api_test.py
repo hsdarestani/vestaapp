@@ -1,0 +1,121 @@
+import importlib.util
+import os
+import tempfile
+import unittest
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location("account_server", "backend/account_server.py")
+api = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(api)
+
+class VestalandAccountTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory()
+        api.DB_FILE=os.path.join(self.tmp.name,"users.sqlite3")
+        api.init_db()
+        api.SMS_KEY="fake-sms-key"
+        api.SMS_TEMPLATE="1234"
+        api.ZIBAL_MERCHANT="fake-merchant"
+        api.CF_WORKER_URL="https://example.workers.dev"
+        api.CF_AI_SHARED_SECRET="x"*40
+        api.AI_GLOBAL_LIMIT=240
+        api.AI_DAILY_PAID=2
+        self.environment=patch.dict(os.environ,{"VESTALAND_OTP_PEPPER":"test-fake-pepper-longer-than-thirty-two-characters"})
+        self.environment.start()
+    def tearDown(self):
+        self.environment.stop();self.tmp.cleanup()
+    def create_user(self,phone="09123456789"):
+        with api.conn() as c:
+            c.execute("INSERT INTO users(phone,created_at,trial_until) VALUES(?,?,?)",(phone,api.now(),api.now()+7*86400))
+            return c.execute("SELECT * FROM users WHERE phone=?",(phone,)).fetchone()
+
+    def test_normalize_iran_phone(self):
+        for phone in ["09123456789","+989123456789","989123456789","00989123456789","۹۱۲۳۴۵۶۷۸۹"]:
+            self.assertEqual(api.normalize_phone(phone),"09123456789")
+        for phone in ["01123456789","091","9876543210"]:
+            with self.assertRaises(api.Error):api.normalize_phone(phone)
+
+    def test_wrong_otp_attempts_are_persisted(self):
+        def sms(url,body=None,headers=None,timeout=20):
+            self.code=body["parameters"][0]["value"];return {"status":1}
+        with patch.object(api,"json_http",side_effect=sms):
+            api.send_otp("09123456789","127.0.0.1")
+        for _ in range(5):
+            with self.assertRaises(api.Error):api.verify_otp("09123456789","000000","127.0.0.1")
+        row=api.db_one("SELECT tries FROM otp_codes WHERE phone=?",("09123456789",))
+        self.assertEqual(row["tries"],5)
+        with self.assertRaises(api.Error):
+            api.verify_otp("09123456789",self.code,"127.0.0.1")
+
+    def test_free_trial_is_once_per_phone(self):
+        def sms(url,body=None,headers=None,timeout=20):
+            self.code=body["parameters"][0]["value"];return {"status":1}
+        real_now=api.now()
+        with patch.object(api,"json_http",side_effect=sms),patch.object(api,"now",return_value=real_now):
+            api.send_otp("09123456789","127.0.0.1")
+            user=api.verify_otp("09123456789",self.code,"127.0.0.1")
+        self.assertEqual(user["user"]["plan"],"trial")
+        first_expiration=user["user"]["trial_until"]
+        with patch.object(api,"json_http",side_effect=sms),patch.object(api,"now",return_value=real_now+9*86400):
+            api.send_otp("09123456789","127.0.0.1")
+            next_login=api.verify_otp("09123456789",self.code,"127.0.0.1")
+        self.assertEqual(next_login["user"]["id"],user["user"]["id"])
+        self.assertEqual(next_login["user"]["trial_until"],first_expiration)
+        self.assertFalse(next_login["user"]["active"])
+
+    def test_zibal_amount_and_double_callback(self):
+        user=self.create_user()
+        calls=[]
+        def zibal(url,body=None,headers=None,timeout=20):
+            calls.append((url,body))
+            if url.endswith("/request"):return {"result":100,"trackId":9182736}
+            return {"result":100,"amount":1990000}
+        with patch.object(api,"json_http",side_effect=zibal):
+            resp=api.subscribe(user,"monthly")
+            self.assertTrue(resp["payment_url"].endswith("/9182736"))
+            self.assertTrue(api.verify_subscription(resp["payment_id"],"9182736"))
+            paid=api.db_one("SELECT * FROM users WHERE id=?",(user["id"],))
+            self.assertGreater(paid["paid_until"],user["trial_until"])
+            self.assertTrue(api.verify_subscription(resp["payment_id"],"9182736"))
+            again=api.db_one("SELECT * FROM users WHERE id=?",(user["id"],))
+            self.assertEqual(again["paid_until"],paid["paid_until"])
+        self.assertEqual(len([a for a in calls if a[0].endswith("/verify")]),1)
+        self.assertEqual(calls[0][1]["amount"],1990000)
+
+    def test_payment_amount_mismatch_never_grants_subscription(self):
+        user=self.create_user()
+        def zibal(url,body=None,headers=None,timeout=20):
+            return {"result":100,"trackId":44} if url.endswith("/request") else {"result":100,"amount":10}
+        with patch.object(api,"json_http",side_effect=zibal):
+            pay=api.subscribe(user,"quarterly")
+            self.assertFalse(api.verify_subscription(pay["payment_id"],"44"))
+        current=api.db_one("SELECT * FROM users WHERE id=?",(user["id"],))
+        self.assertEqual(current["paid_until"],0)
+
+    def test_quotas_and_failed_ai_refund(self):
+        user=self.create_user()
+        with patch.object(api,"json_http",return_value={"ok":True,"suggestion":"این ست صورتی رو با کفش سفید بپوش."}):
+            r=api.ai_recommend(user,[{"name":"شومیز صورتی","group":"closet","category":"top","color":"pink"}],"یه ست بگو")
+            self.assertTrue(r["ok"])
+            with self.assertRaises(api.Error) as err:api.ai_recommend(user,[],"more")
+            self.assertEqual(err.exception.status,429)
+        second=self.create_user("09123456780")
+        with patch.object(api,"json_http",side_effect=api.Error("CF unavailable",502)):
+            with self.assertRaises(api.Error):api.ai_recommend(second,[],"help")
+        with patch.object(api,"json_http",return_value={"ok":True,"suggestion":"کفش سفید."}):
+            self.assertTrue(api.ai_recommend(second,[],"help")["ok"])
+    def test_checkout_uses_own_wc_order_and_idempotency(self):
+        user=self.create_user()
+        call_count=0
+        def shop(kind,store,items,address):
+            nonlocal call_count
+            call_count+=1
+            return {"order_id":357,"redirect_url":"https://gateway.zibal.ir/start/1122","status":"pending"}
+        with patch.object(api,"market_api",side_effect=shop):
+            r=api.checkout(user,"vesta",[{"id":37,"quantity":1}],{"first_name":"سارا"},"client-unique-id-2026")
+            self.assertEqual(r["order_id"],357)
+            other=api.checkout(user,"vesta",[{"id":37,"quantity":1}],{"first_name":"سارا"},"client-unique-id-2026")
+            self.assertTrue(other["existing"])
+        self.assertEqual(call_count,1)
+
+if __name__=="__main__":unittest.main()
