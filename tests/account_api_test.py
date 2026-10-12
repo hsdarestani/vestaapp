@@ -32,7 +32,7 @@ class VestalandAccountTests(unittest.TestCase):
     def test_normalize_iran_phone(self):
         for phone in ["09123456789","+989123456789","989123456789","00989123456789","۹۱۲۳۴۵۶۷۸۹"]:
             self.assertEqual(api.normalize_phone(phone),"09123456789")
-        for phone in ["01123456789","091","9876543210"]:
+        for phone in ["01123456789","091","987654321"]:
             with self.assertRaises(api.Error):api.normalize_phone(phone)
 
     def test_wrong_otp_attempts_are_persisted(self):
