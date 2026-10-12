@@ -43,6 +43,11 @@ for asset in index.html styles.css app.js sw.js icon.svg manifest.webmanifest; d
 done
 test -s "$RELEASE/deploy/compose.yml"
 test -s "$RELEASE/backend/market_server.py"
+# nginx inside an isolated container must traverse every host bind-mount path.
+# The 027 deployment umask otherwise leaves release directories unreadable to nginx.
+chmod 755 "$BASE" "$BASE/releases"
+find "$RELEASE" -type d -exec chmod 755 {} +
+find "$RELEASE" -type f -exec chmod 644 {} +
 ln -s "$RELEASE" "$BASE/current.next"
 mv -Tf "$BASE/current.next" "$BASE/current"
 
