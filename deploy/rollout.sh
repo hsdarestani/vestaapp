@@ -50,13 +50,13 @@ rollback_app(){
   echo "Rolling back application symlink" >&2
   if [ -n "$CURRENT" ]; then
     ln -sfn "$CURRENT" "$BASE/current"
-    docker compose -f "$BASE/current/deploy/compose.yml" up -d --build --force-recreate || true
+    docker compose -p vestaapp -f "$BASE/current/deploy/compose.yml" up -d --build --force-recreate || true
   else
     rm -f "$BASE/current"
     docker rm -f vc-vestaapp-web vc-vestaapp-market >/dev/null 2>&1 || true
   fi
 }
-if ! docker compose -f "$BASE/current/deploy/compose.yml" up -d --build --force-recreate; then
+if ! docker compose -p vestaapp -f "$BASE/current/deploy/compose.yml" up -d --build --force-recreate; then
   rollback_app
   exit 1
 fi
