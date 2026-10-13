@@ -1,10 +1,6 @@
 name: Deploy softer Vestaland interface only
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'deploy/visual-refresh-once.flag'
 permissions:
   contents: read
 concurrency:
