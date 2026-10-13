@@ -1,5 +1,5 @@
 name: Deploy Vestaland Cloudflare AI
-# Re-publish photo model diagnostics for a synthetic test.
+# Re-publish Gemma 4 with thinking disabled for short structured vision output.
 on:
   workflow_dispatch:
   push:
