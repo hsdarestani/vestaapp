@@ -124,12 +124,12 @@ function aiView(){
  '<button class="btn btn-primary btn-block" '+(S.loading||!isEnabled('ai_enabled')?'disabled':'')+' type="submit">پیشنهاد هوشمند</button></form>'+
  (!isEnabled('ai_enabled')?'<p class="commerce-warning">سرویس AI هنوز فعال نشده است؛ فعلاً از «ست امروز» استفاده کن.</p>':'')+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
- (S.aiResponse?'<div class="commerce-ai-answer"><b>✨ پیشنهاد من برای تو</b><p>'+safe(S.aiResponse)+'</p></div>':'');
+ (S.aiResponse?'<div class="commerce-ai-answer"><b>پیشنهاد من برای تو</b><p>'+safe(S.aiResponse)+'</p></div>':'');
 }
 function ordersView(){
  return '<p class="commerce-lead">سفارش‌های ثبت‌شده با همین حساب</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
- (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty">📦<p>فعلاً سفارشی ثبت نشده.</p></div>')+
+ (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/illustrations/market-wow.svg" alt="" loading="lazy"><p>فعلاً سفارشی ثبت نشده.</p></div>')+
  '<p class="commerce-note">برای وضعیت پرداخت یا ارسال، رسید و حساب همان فروشگاه رو هم بررسی کن.</p>';
 }
 function renderModal(){
@@ -143,7 +143,7 @@ function refreshProfile(){
  if(!root||!root.querySelector('.profile-banner'))return;
  if(root.querySelector('#commerceProfileActions'))return;
  const box=document.createElement('div');box.id='commerceProfileActions';box.className='commerce-profile-card';
- box.innerHTML='<div class="commerce-profile-status"><span>💌</span><div><b>'+(S.user?safe(S.user.phone):'حساب من')+'</b><small>'+safe(statusText())+'</small></div></div>'+
+ box.innerHTML='<div class="commerce-profile-status"><img class="profile-inline-art" src="/assets/illustrations/gate-wow.svg" alt=""><div><b>'+(S.user?safe(S.user.phone):'حساب من')+'</b><small>'+safe(statusText())+'</small></div></div>'+
  '<div class="commerce-profile-buttons"><button data-commerce-open="'+(S.user?'account':'login')+'">'+(S.user?'مدیریت حساب':'ورود / ثبت نام')+'</button><button data-commerce-open="plans">اشتراک‌ها</button><button data-commerce-open="orders">سفارش‌ها</button><button data-commerce-open="cart">سبد خرید ('+cartTotal()+')</button></div>';
  const banner=root.querySelector('.profile-banner');
  banner.insertAdjacentElement('afterend',box);
