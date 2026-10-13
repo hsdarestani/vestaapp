@@ -21,7 +21,7 @@ jobs:
           node --test tests/profile.test.cjs tests/visual_assets.test.cjs
           bash -n deploy/deploy-ui-refresh.sh
           python3 -m pip install -q --break-system-packages Pillow
-          VESTALAND_PHOTO_DEST=/tmp/vestaland-test-photos python3 scripts/prepare-real-photos.py
+          VESTALAND_PHOTO_DEST=/tmp/vestaland-test-photos python3 scripts/prepare-stock-photos.py
           python3 - <<'PY'
           from pathlib import Path
           from PIL import Image
