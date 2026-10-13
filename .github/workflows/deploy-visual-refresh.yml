@@ -1,6 +1,9 @@
 name: Deploy licensed Pexels stock photography to Vestaland
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/stock-release-once.flag']
 permissions:
   contents: read
 concurrency:
