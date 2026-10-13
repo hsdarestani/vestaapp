@@ -1,0 +1,57 @@
+name: Repair Vestaland illustration delivery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/fix-images-once.flag']
+permissions:
+  contents: read
+concurrency:
+  group: vestaland-illustration-hotfix
+  cancel-in-progress: false
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate targeted fix and SSH destination
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          bash -n deploy/fix-static-artwork-permissions.sh
+          bash -n deploy/deploy-ui-refresh.sh
+          test "${HOST##*@}" = '193.177.242.64'
+          test -n "$PASS" && test -n "$SSH_KNOWN_HOSTS"
+      - name: Install SSH transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Apply only Vestaland image folder permission fix
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"; [[ "$target" == *'@'* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$target" 'bash -s' < deploy/fix-static-artwork-permissions.sh
+      - name: Confirm public SVG bodies, image MIME, and both shops
+        run: |
+          set -euo pipefail
+          for img in onboarding.svg selfcare.svg market.svg market-wow.svg gate-wow.svg; do
+            url="https://app.vesta-cosmetics.ir/assets/illustrations/$img"
+            code="$(curl --fail -sS --retry 2 --max-time 20 -o /tmp/vesta-checked.svg -w '%{http_code} %{content_type}' "$url")"
+            [[ "$code" == '200 image/svg+xml'* ]] || { echo "$img returned $code not SVG"; exit 1; }
+            grep -q '<svg' /tmp/vesta-checked.svg || { echo "$img did not return an SVG"; exit 1; }
+            echo "$img HTTP=$code"
+          done
+          for domain in vesta-cosmetics.ir cutellashop.ir; do
+            code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://$domain/")"
+            echo "$domain HTTP=$code"
+            [[ "$code" == 200 || "$code" == 301 || "$code" == 302 ]]
+          done
