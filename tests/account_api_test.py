@@ -111,6 +111,32 @@ class VestalandAccountTests(unittest.TestCase):
         self.assertEqual(len([a for a in calls if a[0].endswith("/verify")]),1)
         self.assertEqual(calls[0][1]["amount"],1990000)
 
+    def test_pending_zibal_payment_can_be_reconciled_by_original_user(self):
+        user=self.create_user()
+        calls=[]
+        def gateway(url,body=None,headers=None,timeout=20):
+            calls.append(url)
+            if url.endswith('/request'):return {"result":100,"trackId":67248921}
+            return {"result":202,"message":"transaction failed"}
+        with patch.object(api,'json_http',side_effect=gateway):
+            pay=api.subscribe(user,'quarterly')
+            status=api.subscription_status(user,pay['payment_id'],refresh=True)
+            self.assertEqual(status['payment_status'],'pending')
+            self.assertEqual(status['price_toman'],499000)
+            self.assertEqual(status['verified_at'],None)
+            self.assertEqual(api.db_one("SELECT paid_until FROM users WHERE id=?",(user['id'],))['paid_until'],0)
+        other=self.create_user("09123456780")
+        with self.assertRaises(api.Error) as exc:api.subscription_status(other,pay['payment_id'],refresh=True)
+        self.assertEqual(exc.exception.status,404)
+        with self.assertRaises(api.Error):api.subscription_status(user,'random-invalid-id',refresh=True)
+        with patch.object(api,'json_http',return_value={"result":100,"amount":4990000}):
+            verified=api.subscription_status(user,pay['payment_id'],refresh=True)
+            self.assertEqual(verified['payment_status'],'paid')
+            self.assertEqual(verified['price_toman'],499000)
+            self.assertIsNotNone(verified['verified_at'])
+            second=api.subscription_status(user,pay['payment_id'],refresh=True)
+            self.assertEqual(second['verified_at'],verified['verified_at'])
+
     def test_payment_amount_mismatch_never_grants_subscription(self):
         user=self.create_user()
         def zibal(url,body=None,headers=None,timeout=20):

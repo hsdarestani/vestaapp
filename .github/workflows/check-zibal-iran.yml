@@ -1,0 +1,59 @@
+name: Probe Zibal from Iranian server (no payment)
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/zibal-and-stock-photos-20261013]
+    paths: ['.github/workflows/check-zibal-iran.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Install SSH tool
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Test direct Zibal initiation using existing secret inside account container
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${HOST##*@}" = 193.177.242.64
+          test -n "$PASS" && test -n "$SSH_KNOWN_HOSTS"
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"; [[ "$target" == *'@'* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=14 "$target" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          docker exec -i vc-vestaapp-account python3 - <<'PY'
+          import json,os,secrets,urllib.request,urllib.error
+          merchant=os.getenv("ZIBAL_MERCHANT","")
+          if not merchant:raise SystemExit("Account service has no Zibal merchant key")
+          payload={"merchant":merchant,"amount":1990000,
+             "callbackUrl":"https://app.vesta-cosmetics.ir/api/account/subscription/callback?payment="+secrets.token_urlsafe(12),
+             "description":"Vestaland server verification NO PAYMENT"}
+          def call(part,payload):
+            req=urllib.request.Request("https://gateway.zibal.ir/v1/"+part,
+                data=json.dumps(payload).encode(),method="POST",headers={"Content-Type":"application/json","Accept":"application/json"})
+            try:
+              with urllib.request.urlopen(req,timeout=22) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+              try:return e.code,json.loads(e.read(10000))
+              except:return e.code,{}
+          status,result=call("request",payload)
+          print("Zibal from Iranian account container HTTP",status,"result",result.get("result"),"message",str(result.get("message",""))[:150])
+          if result.get("result")!=100:
+            raise SystemExit("MERCHANT BLOCKED: no payment feature activation")
+          track=result.get("trackId")
+          if not str(track).isdigit():raise SystemExit("Missing numeric trackId")
+          print("Real app server may create payment requests; no user redirected / no charge.")
+          _,before=call("verify",{"merchant":merchant,"trackId":int(track)})
+          print("Unpaid Zibal verification result",before.get("result"))
+          if before.get("result")==100:raise SystemExit("Unexpected paid transaction")
+          print("PASS: Production merchant accepts the Iran server and callback; pre-payment verification fails safely.")
+          PY
+          REMOTE

@@ -36,7 +36,7 @@ async function api(path,opts={}){
  finally{clearTimeout(timeout)}
 }
 function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
-function membershipPaymentEnabled(){return isEnabled('subscriptions_enabled')||(isBazaarAndroid()&&isEnabled('bazaar_enabled'))}
+function membershipPaymentEnabled(){return isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled')}
 function signedInAccess(){return !!S.user&&(!membershipPaymentEnabled()||allowed())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
@@ -73,7 +73,7 @@ function pricing(){
  return '<div class="commerce-plans">'+plans.map(p=>'<div class="commerce-plan '+(p.id==='quarterly'?'featured':'')+'"><div><strong>'+(p.id==='monthly'?'ماهانه':'سه‌ماهه')+'</strong><small>'+(p.id==='monthly'?'۳۰ روز':'۹۰ روز')+'</small></div><b>'+toman(p.price_toman)+'</b><button class="btn btn-primary" data-payplan="'+p.id+'" '+(!S.token||!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))||S.loading?'disabled':'')+'>انتخاب پلن</button></div>').join('')+'</div>';
 }
 function loginView(){
- return '<div class="commerce-intro"><img src="/assets/photos/beauty-care.webp" alt="" loading="lazy"></div><p class="commerce-lead">با شماره موبایلت وارد شو و ۷ روز اول رو رایگان از امکانات وستالند استفاده کن!</p>'+
+ return '<div class="commerce-intro"><img src="/assets/photos/beauty-care.webp?v=stock20261013" alt="" loading="lazy"></div><p class="commerce-lead">با شماره موبایلت وارد شو و ۷ روز اول رو رایگان از امکانات وستالند استفاده کن!</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  '<form id="commerceLoginForm"><label>شماره موبایل<input name="phone" inputmode="tel" autocomplete="tel" required placeholder="۰۹۱۲۱۲۳۴۵۶۷" value="'+safe(S.phone)+'"></label>'+
  (S.otp?'<label>کد پیامک‌شده<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9۰-۹]{6}" maxlength="6" placeholder="کد ۶ رقمی" required></label>':'')+
@@ -84,6 +84,7 @@ function loginView(){
 function plansView(){
  return '<p class="commerce-lead">'+safe(statusText())+'</p><p class="commerce-note">۷ روز اول رایگان برای هر شماره، فقط یک بار. هزینه اشتراک پس از انتخاب پلن دریافت می‌شود؛ تمدید خودکار فعال نیست.</p>'+
  pricing()+(S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
+ (S.token&&localStorage.getItem(paymentKey)&&!isBazaarAndroid()?'<button class="btn btn-outline btn-block" data-payment-refresh>بررسی آخرین پرداخت</button>':'')+
  (!S.token?'<button class="btn btn-outline btn-block" data-commerce-open="login">اول وارد شو</button>':'')+
  (isBazaarAndroid()?'<p class="commerce-note">پرداخت اشتراک نسخه کافه‌بازار فقط از طریق پرداخت امن خود بازار و تأیید سمت سرور انجام می‌شود.</p>':'')+
  (!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))?'<p class="commerce-warning">پرداخت اشتراک بعد از اتصال و تأیید درگاه فعال می‌شود.</p>':'');
@@ -101,7 +102,7 @@ function cartView(){
  return '<p class="commerce-lead">سبد خرید وستا و کیوتلا جداست. هر سفارشت رو از همین‌جا پیگیری کن.</p>'+
  '<div class="commerce-tabs"><button data-cartstore="vesta" class="'+(st==='vesta'?'active':'')+'">وستا</button><button data-cartstore="cutella" class="'+(st==='cutella'?'active':'')+'">کیوتلا</button></div>'+
  (items.length?'<div class="commerce-cart-items">'+items.map(x=>'<div class="commerce-cart-line"><span>'+safe(x.name)+'</span><div><button data-qty="-1" data-productid="'+x.id+'" aria-label="کم کردن">−</button><b>'+new Intl.NumberFormat('fa-IR').format(x.quantity)+'</b><button data-qty="1" data-productid="'+x.id+'" aria-label="افزودن">＋</button></div></div>').join('')+'</div>':
- '<div class="commerce-empty"><img src="/assets/photos/shop-cutella.webp" alt="" loading="lazy"><p>سبد '+name+' هنوز خالیه.</p></div>')+
+ '<div class="commerce-empty"><img src="/assets/photos/shop-cutella.webp?v=stock20261013" alt="" loading="lazy"><p>سبد '+name+' هنوز خالیه.</p></div>')+
  '<p class="commerce-note">قیمت و موجودی نهایی با استعلام زنده از سایت فروشگاه محاسبه می‌شه. ممکنه هزینه ارسال هم اضافه بشه.</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  '<button class="btn btn-primary btn-block" data-commerce-quote '+(count===0||S.loading||!isEnabled('store_checkout_enabled')?'disabled':'')+'>استعلام موجودی و ادامه خرید ('+count+')</button>'+
@@ -129,7 +130,7 @@ function aiView(){
 function ordersView(){
  return '<p class="commerce-lead">سفارش‌های ثبت‌شده با همین حساب</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
- (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/photos/shop-mixed.webp" alt="" loading="lazy"><p>فعلاً سفارشی ثبت نشده.</p></div>')+
+ (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/photos/shop-mixed.webp?v=stock20261013" alt="" loading="lazy"><p>فعلاً سفارشی ثبت نشده.</p></div>')+
  '<p class="commerce-note">برای وضعیت پرداخت یا ارسال، رسید و حساب همان فروشگاه رو هم بررسی کن.</p>';
 }
 function renderModal(){
@@ -143,7 +144,7 @@ function refreshProfile(){
  if(!root||!root.querySelector('.profile-banner'))return;
  if(root.querySelector('#commerceProfileActions'))return;
  const box=document.createElement('div');box.id='commerceProfileActions';box.className='commerce-profile-card';
- box.innerHTML='<div class="commerce-profile-status"><img class="profile-inline-art" src="/assets/photos/beauty-care.webp" alt=""><div><b>'+(S.user?safe(S.user.phone):'حساب من')+'</b><small>'+safe(statusText())+'</small></div></div>'+
+ box.innerHTML='<div class="commerce-profile-status"><img class="profile-inline-art" src="/assets/photos/beauty-care.webp?v=stock20261013" alt=""><div><b>'+(S.user?safe(S.user.phone):'حساب من')+'</b><small>'+safe(statusText())+'</small></div></div>'+
  '<div class="commerce-profile-buttons"><button data-commerce-open="'+(S.user?'account':'login')+'">'+(S.user?'مدیریت حساب':'ورود / ثبت نام')+'</button><button data-commerce-open="plans">اشتراک‌ها</button><button data-commerce-open="orders">سفارش‌ها</button><button data-commerce-open="cart">سبد خرید ('+cartTotal()+')</button></div>';
  const banner=root.querySelector('.profile-banner');
  banner.insertAdjacentElement('afterend',box);
@@ -177,9 +178,16 @@ async function bootstrap(){
   if(new URLSearchParams(location.search).has('payment')){
    const q=new URLSearchParams(location.search);history.replaceState(null,'',location.pathname);
    const pid=localStorage.getItem(paymentKey);
-   if(pid&&S.token){
-    try{const status=await api('subscription/status?id='+encodeURIComponent(pid));if(status.payment_status==='paid'){notify('اشتراکت با موفقیت فعال شد');localStorage.removeItem(paymentKey);await refreshUser()}}
-    catch{}
+   if(pid&&S.token&&!isBazaarAndroid()){
+    try{
+      const status=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
+      if(status.payment_status==='paid'){
+        notify('پرداخت تأیید شد و اشتراکت فعال شد.');
+        localStorage.removeItem(paymentKey);await refreshUser();
+      }else if(status.payment_status==='mismatch'){
+        S.error='مبلغ پرداخت با سفارش تطبیق نداشت. با پشتیبانی تماس بگیر.';S.modal='plans';
+      }else{S.error='پرداخت هنوز تأیید نشده؛ اگر مبلغ کسر شده، آخرین پرداخت رو بررسی کن.';S.modal='plans'}
+    }catch(e){S.error='نتیجه پرداخت موقتاً در دسترس نیست. دوباره بررسی کن.';S.modal='plans'}
    }
   }
   if(S.user&&window.VestalandInventory){
@@ -213,6 +221,21 @@ async function loginSubmit(form){
    if(!signedInAccess())S.modal='plans';else close();
   }
  }catch(e){S.error=e.message}finally{S.loading=false;renderModal();decorate()}
+}
+async function refreshPayment(){
+ const pid=localStorage.getItem(paymentKey);
+ if(!pid||!S.token)return;
+ S.loading=true;S.error='';S.modal='plans';renderModal();
+ try{
+  const status=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
+  if(status.payment_status==='paid'){
+   localStorage.removeItem(paymentKey);
+   await refreshUser();notify('اشتراکت فعال شد.');
+   if(signedInAccess())close();
+  }else if(status.payment_status==='mismatch'){S.error='مبلغ پرداخت با سفارش مطابقت نداره؛ با پشتیبانی تماس بگیر.'}
+  else{S.error='هنوز پرداخت تأیید نشده؛ کمی بعد دوباره بررسی کن.'}
+ }catch(e){S.error=e.message||'تأیید پرداخت موقتاً در دسترس نیست.'}
+ finally{S.loading=false;if(S.modal)renderModal()}
 }
 async function startPayment(plan){
  S.loading=true;S.error='';renderModal();
@@ -353,6 +376,7 @@ document.addEventListener('click',event=>{
  if(b.hasAttribute('data-commerce-back')){S.otp=false;renderModal();return}
  if(b.dataset.commerceOpen){event.preventDefault();if(b.dataset.commerceOpen==='orders')loadOrders();else open(b.dataset.commerceOpen);return}
  if(b.dataset.payplan){event.preventDefault();startPayment(b.dataset.payplan);return}
+ if(b.hasAttribute('data-payment-refresh')){event.preventDefault();refreshPayment();return}
  if(b.dataset.cartstore){S.store=b.dataset.cartstore;S.checkoutRequestId=null;renderModal();return}
  if(b.dataset.qty){
   const row=S.cart[S.store].find(x=>x.id===Number(b.dataset.productid));

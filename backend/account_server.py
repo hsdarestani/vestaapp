@@ -323,10 +323,26 @@ def verify_bazaar_receipt(user,plan,purchase_token):
     fresh=db_one("SELECT * FROM users WHERE id=?",(user["id"],))
     return {"ok":True,"user":public_user(fresh),"bazaar_expires_at":receipt["expires_at"]}
 
-def subscription_status(user,pid):
-    s=db_one("SELECT * FROM subscriptions WHERE id=? AND user_id=?",(pid,user["id"]))
-    if not s:raise Error("پرداخت پیدا نشد.",404)
-    return {"ok":True,"payment_status":s["status"],"plan":s["plan"]}
+def subscription_status(user,pid,refresh=False):
+    if not isinstance(pid,str) or not re.fullmatch(r"[A-Za-z0-9_-]{20,90}",pid):
+        raise Error("شناسه پرداخت معتبر نیست.",400)
+    payment=db_one("SELECT * FROM subscriptions WHERE id=? AND user_id=?",(pid,user["id"]))
+    if not payment:raise Error("پرداخت پیدا نشد.",404)
+    if refresh and payment["status"] in ("pending","verifying"):
+        # Payment may have succeeded even when the browser was closed before
+        # the Zibal callback. Authenticated, bounded manual reconciliation.
+        if now()-payment["created_at"]>14*86400:
+            raise Error("برای بررسی این پرداخت با پشتیبانی تماس بگیر.",409)
+        with LOCK,conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            check_rate(c,"zibal:refresh:"+digest(pid)[:24],6,3600)
+        try:verify_subscription(pid)
+        except Error:
+            LOG.warning("Zibal status refresh currently unavailable for payment %s",pid)
+        payment=db_one("SELECT * FROM subscriptions WHERE id=? AND user_id=?",(pid,user["id"]))
+    return {"ok":True,"payment_status":payment["status"],"plan":payment["plan"],
+            "price_toman":payment["amount_rial"]//10,
+            "verified_at":payment["verified_at"]}
 
 def ai_recommend(user,items,question):
     if os.getenv("AI_ENABLED","0")!="1":raise Error("پیشنهاد AI هنوز برای عموم فعال نشده است.",503)
@@ -561,7 +577,8 @@ class API(BaseHTTPRequestHandler):
         if path=="/api/account/orders":return self.json(200,orders(authenticate(self.headers,active=True)))
         if path=="/api/account/subscription/status":
             user=authenticate(self.headers)
-            return self.json(200,subscription_status(user,(q.get("id") or [""])[0]))
+            return self.json(200,subscription_status(user,(q.get("id") or [""])[0],
+                refresh=(q.get("refresh") or ["0"])[0]=="1"))
         raise Error("مسیر پیدا نشد.",404)
     def post(self):
         self.guard_origin()

@@ -1,0 +1,46 @@
+name: Probe Vestaland Zibal merchant (no payment)
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/zibal-and-stock-photos-20261013]
+    paths: ['.github/workflows/check-live-zibal.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check merchant callback approval and pending transaction without charging
+        env:
+          ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,secrets
+          merchant=os.getenv("ZIBAL_MERCHANT","")
+          if not merchant:raise SystemExit("ZIBAL_MERCHANT secret missing")
+          body={"merchant":merchant,"amount":1990000,
+                "callbackUrl":"https://app.vesta-cosmetics.ir/api/account/subscription/callback?payment="+secrets.token_urlsafe(12),
+                "description":"Vestaland API integration check (NO PAYMENT)"}
+          def call(path,body):
+            req=urllib.request.Request("https://gateway.zibal.ir/v1/"+path,
+                  data=json.dumps(body).encode(),headers={"Content-Type":"application/json","Accept":"application/json","User-Agent":"Vestaland/1.0"},
+                  method="POST")
+            try:
+              with urllib.request.urlopen(req,timeout=22) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+              try:return e.code,json.loads(e.read(16000))
+              except:return e.code,{}
+          code,response=call("request",body)
+          result=response.get("result")
+          print("Zibal live merchant request status:",code,"result:",result)
+          print("Zibal response message:",str(response.get("message",""))[:80])
+          if result!=100 or not str(response.get("trackId","")).isdigit():
+            raise SystemExit("Production merchant/callback domain not accepted. Do not enable subscription billing.")
+          print("Live merchant+app callback accepted. NO browser payment or charge occurred.")
+          verifycode,verified=call("verify",{"merchant":merchant,"trackId":int(response["trackId"])})
+          print("Before payment verification HTTP:",verifycode,"result:",verified.get("result"))
+          if verified.get("result")==100:
+            raise SystemExit("Unexpected paid transaction; inspect merchant before enabling any billing.")
+          print("Payment remains unpaid as required. Can proceed to gated live user test.")
+          PY
