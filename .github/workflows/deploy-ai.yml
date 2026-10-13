@@ -1,6 +1,9 @@
 name: Deploy Vestaland Cloudflare AI
 on:
   workflow_dispatch:
+  push:
+    branches: [feature/login-gate-photo-ai-entry]
+    paths: ['.github/workflows/deploy-ai.yml']
 permissions:
   contents: read
 concurrency:
