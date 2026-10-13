@@ -1,0 +1,1 @@
+Publish tested camera/photo AI field UI and account isolation. Keep OTP_ENABLED=0, IMAGE_SCAN_ENABLED=0, AI_ENABLED=0 pending SMS and authenticated production test. Do not touch store services.
