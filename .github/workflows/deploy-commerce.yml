@@ -1,9 +1,6 @@
 name: Deploy Vestaland commerce safely
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['deploy/otp-safe-staging-release.flag']
 permissions:
   contents: read
 concurrency:
