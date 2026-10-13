@@ -38,7 +38,7 @@ export default {
           max_completion_tokens:175,temperature:0,stream:false
         });
         let answer=String(result.response||result.choices?.[0]?.message?.content||"");
-        if(!answer) return json(502,{ok:false,error:"empty_vision"});
+        if(!answer) return json(502,{ok:false,error:"empty_vision",keys:Object.keys(result||{}).slice(0,9),shape:JSON.stringify(result||{}).slice(0,350)});
         const match=answer.match(/\{[\s\S]*?\}/);
         if(!match)return json(502,{ok:false,error:"invalid_vision_output"});
         const parsed=JSON.parse(match[0]);
