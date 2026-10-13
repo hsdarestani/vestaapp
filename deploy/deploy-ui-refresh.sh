@@ -26,8 +26,8 @@ for file in "${files[@]}"; do
     cp -p "$PUBLIC/$file" "$BACKUP/$file"
   fi
 done
-grep -q 'v=20261013-realphotos1' "$STAGE/index.html"
-grep -q 'vestaland-real-photos-20261013-v1' "$STAGE/sw.js"
+grep -q 'v=20261013-stock2' "$STAGE/index.html"
+grep -q 'vestaland-stock-20261013-v2' "$STAGE/sw.js"
 grep -q 'یه عکس بگیر تا مشخصات' "$STAGE/index.html"
 if grep -q 'به Cloudflare ارسال' "$STAGE/index.html"; then
   echo 'Old technical text is still present'; exit 1
