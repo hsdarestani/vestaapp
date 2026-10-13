@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['deploy/stock-release-once.flag']
+    paths: ['deploy/stock-release-retry-once.flag']
 permissions:
   contents: read
 concurrency:
