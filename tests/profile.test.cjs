@@ -21,7 +21,7 @@ function makeApp(){
     getAll(k){return this.values[k] || [];}
   };
   let source = fs.readFileSync('app.js','utf8');
-  const needle='boot();\n})();';
+  const needle='const bootPromise=boot();\nwindow.VestalandInventory.ready=bootPromise;\n})();';
   assert.ok(source.includes(needle),'expected app boot marker');
   source=source.replace(needle,'globalThis.__profileTests={meView,submitProfile,makeLook,loadProfile,state,getProfile:()=>profile};\n})();');
   const sandbox={
