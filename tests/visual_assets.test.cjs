@@ -5,7 +5,7 @@ const path=require('node:path');
 
 const read=p=>fs.readFileSync(p,'utf8');
 const html=read('index.html'),app=read('app.js'),commerce=read('commerce.js'),css=read('styles.css'),commerceCss=read('commerce.css');
-const assetLinks=[...new Set([html,app,commerce,css,commerceCss].flatMap(s=>[...s.matchAll(/\/assets\/illustrations\/[a-z0-9-]+\.svg/g)].map(m=>m[0])))];
+const photoLinks=[...new Set([html,app,commerce,css,commerceCss].flatMap(s=>[...s.matchAll(/\/assets\/photos\/[a-z0-9-]+\.webp/g)].map(m=>m[0])))];
 
 test('photo form uses a short, friendly hint without infrastructure details',()=>{
   assert.ok(html.includes('یه عکس بگیر تا مشخصات وسیله سریع‌تر تکمیل بشه.'));
@@ -15,9 +15,19 @@ test('photo form uses a short, friendly hint without infrastructure details',()=
   assert.match(html,/id="itemCamera"/);
   assert.match(html,/id="itemPhoto"/);
 });
-test('illustration links are all existing local project assets',()=>{
-  assert.ok(assetLinks.length>=4,'relevant artwork expected');
-  for(const url of assetLinks)assert.ok(fs.existsSync(path.join('.',url)), 'missing asset '+url);
+test('app uses real store photographs with reproducible source metadata',()=>{
+  const producer=read('scripts/prepare-real-photos.py');
+  assert.ok(photoLinks.length>=7,'real photo links expected throughout UI');
+  for(const url of photoLinks){
+    const photo=path.basename(url,'.webp');
+    assert.ok(producer.includes('"'+photo+'"'), 'unknown real photo: '+url);
+  }
+  for(const page of [app,commerce,html])
+    assert.ok(!page.includes('/assets/illustrations/'), 'no cartoon illustration references remain');
+});
+test('unphotographed personal wardrobe items are never falsely shown as store products',()=>{
+  assert.match(app,/class="photo-empty"/);
+  assert.match(app,/const src=imgUrl\(item\)/);
 });
 test('bottom navigation uses restrained SVG icons instead of emojis',()=>{
   const nav=html.match(/<nav class="bottom-nav"[\s\S]*?<\/nav>/)?.[0];
