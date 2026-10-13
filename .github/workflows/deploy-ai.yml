@@ -1,4 +1,5 @@
 name: Deploy Vestaland Cloudflare AI
+# Re-publish photo model diagnostics for a synthetic test.
 on:
   workflow_dispatch:
   push:
