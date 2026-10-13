@@ -6,10 +6,10 @@ const clothes=[['top','بالاپوش','👚'],['bottom','شلوار و دامن
 const beauty=[['makeup','آرایشی','💄'],['skincare','مراقبت پوست','🧴'],['hair','مو','🪮'],['fragrance','عطر','🌸'],['tools','ابزار زیبایی','🪞'],['other','سایر','🎀']];
 const colors={pink:['صورتی','#f4a0bd'],white:['سفید','#f6f4f5'],black:['مشکی','#3b3640'],cream:['کرم','#dfcaaa'],blue:['آبی','#9fc5e9'],green:['سبز','#b6d3b5'],red:['قرمز','#cf6572'],brown:['قهوه‌ای','#a27e68'],purple:['یاسی','#c8b0e7'],other:['متفرقه','#d5c3cc']};
 const shopHosts={'vesta':'vesta-cosmetics.ir','cutella':'cutellashop.ir'};
-const dbName='vestaland-personal-v1';
+let dbName='vestaland-personal-v1';
 let db=null,photoUrls=[],pendingImage=null,marketSeq=0,toastTimeout=0;
 const state={route:'home',items:[],type:'closet',filter:'all',store:'all',query:'',products:[],marketError:'',look:null};
-const profileStoreKey='vestaland-style-profile-v1';
+let profileStoreKey='vestaland-style-profile-v1';
 const styleChoices=[['casual','روزمره','☁️'],['minimal','مینیمال','🤍'],['girly','فانتزی','🎀'],['sport','اسپرت','👟'],['chic','شیک و رسمی','✨']];
 const avatarChoices=['🎀','🐰','🌷','🧸','🦋','💗'];
 const skinChoices=[['unknown','انتخاب نکردم'],['normal','معمولی'],['dry','خشک'],['oily','چرب'],['combo','مختلط'],['sensitive','حساس']];
@@ -117,10 +117,10 @@ function submitProfile(e){
 }
 function route(name){const previous=state.route;if((name==='closet'||name==='beauty')&&previous!==name)state.filter='all';state.route=name;clearUrls();const content={home,closet:()=>itemsPage('closet'),beauty:()=>itemsPage('beauty'),look:lookView,shop:shopView,me:meView};$('#appContent').innerHTML=(content[name]||home)();document.querySelectorAll('[data-route]') .forEach(x=>x.classList.toggle('active',x.dataset.route===name));window.scrollTo({top:0,behavior:'instant'});if(name==='shop'&&!state.products.length)refreshShop()}
 function rerender(){const r=state.route;route(r)}
-function openEditor(group){state.type=group;pendingImage=null;$('#itemForm').reset();$('#itemOpened').value=today();$('#itemCategory').innerHTML=(group==='beauty'?beauty:clothes).map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');$('#beautyFields').classList.toggle('hidden',group!=='beauty');$('#dialogTitle').textContent=group==='beauty'?'یه خوشگل جدید برای میز آرایش 💄':'یه لباس جدید برای کمدم 👗';$('#photoPreview').innerHTML='<span>📸</span><small>عکس وسیله‌ات رو بذار</small>';$('#editorDialog').classList.remove('hidden');document.body.style.overflow='hidden';$('#itemName').focus()}
+function openEditor(group){state.type=group;pendingImage=null;$('#itemForm').reset();$('#itemOpened').value=today();$('#itemCategory').innerHTML=(group==='beauty'?beauty:clothes).map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');$('#beautyFields').classList.toggle('hidden',group!=='beauty');$('#dialogTitle').textContent=group==='beauty'?'یه خوشگل جدید برای میز آرایش 💄':'یه لباس جدید برای کمدم 👗';$('#photoPreview').innerHTML='<span>📸</span><small>عکس وسیله‌ات رو بذار</small>';$('#aiScanButton').disabled=true;$('#editorDialog').classList.remove('hidden');document.body.style.overflow='hidden';$('#itemName').focus()}
 function closeEditor(){$('#editorDialog').classList.add('hidden');document.body.style.overflow='';pendingImage=null}
 async function compressImage(file){if(file.size>15*1024*1024)throw Error('عکس بزرگه؛ لطفاً عکس زیر ۱۵ مگابایت انتخاب کن.');if(!file.type.startsWith('image/'))throw Error('فقط عکس قابل انتخابه.');let bitmap;try{bitmap=await createImageBitmap(file)}catch{throw Error('این فرمت عکس روی دستگاه پشتیبانی نمی‌شه؛ عکس JPG یا PNG انتخاب کن.')}const scale=Math.min(1,1200/Math.max(bitmap.width,bitmap.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bitmap.width*scale));c.height=Math.max(1,Math.round(bitmap.height*scale));c.getContext('2d').drawImage(bitmap,0,0,c.width,c.height);bitmap.close();return new Promise((res,rej)=>c.toBlob(x=>x?res(x):rej(Error('پردازش عکس انجام نشد.')),'image/jpeg',.78))}
-async function photoChanged(file){if(!file)return;try{pendingImage=await compressImage(file);const u=URL.createObjectURL(pendingImage);$('#photoPreview').innerHTML='<img src="'+esc(u)+'" alt="پیش‌نمایش عکس انتخاب‌شده">';setTimeout(()=>URL.revokeObjectURL(u),15000)}catch(err){toast(err.message)}}
+async function photoChanged(file){if(!file)return;try{pendingImage=await compressImage(file);$('#aiScanButton').disabled=false;const u=URL.createObjectURL(pendingImage);$('#photoPreview').innerHTML='<img src="'+esc(u)+'" alt="پیش‌نمایش عکس انتخاب‌شده">';setTimeout(()=>URL.revokeObjectURL(u),15000)}catch(err){toast(err.message)}}
 async function submitForm(e){e.preventDefault();const name=$('#itemName').value.trim();if(!name){toast('اسم وسیله رو بنویس.');return}const item={id:crypto.randomUUID?crypto.randomUUID():String(nowMillis()),group:state.type,name,category:$('#itemCategory').value,color:$('#itemColor').value,brand:$('#itemBrand').value.trim(),photo:pendingImage,opened:state.type==='beauty'?$('#itemOpened').value:'',pao:state.type==='beauty'?Number($('#itemPAO').value):0,routine:state.type==='beauty'?$('#itemRoutine').value:'none',created:nowMillis()};try{await storeItem(item);closeEditor();route(state.type);toast('به دنیای خودت اضافه شد 💕')}catch(err){toast('ذخیره انجام نشد؛ حافظه دستگاه رو بررسی کن.')}}
 async function deleteItem(id){const item=state.items.find(x=>x.id===id);if(!item||!confirm('«'+item.name+'» از وسایلت حذف بشه؟'))return;await removeItem(id);rerender();toast('حذف شد')}
 async function refreshShop(){const seq=++marketSeq;state.marketError='';try{const q=new URLSearchParams({store:state.store,per_page:'30'});if(state.query.trim())q.set('search',state.query.trim());const resp=await fetch('/api/market/products?'+q.toString(),{cache:'no-store'});if(!resp.ok)throw Error('ارتباط با محصولات فروشگاه برقرار نشد.');const j=await resp.json();if(seq!==marketSeq)return;state.products=Array.isArray(j.items)?j.items:[];if(j.errors&&Object.keys(j.errors).length)state.marketError='یکی از فروشگاه‌ها موقتاً در دسترس نیست.'}catch(err){if(seq!==marketSeq)return;state.products=[];state.marketError=err.message+' می‌تونی مستقیماً از لینک فروشگاه‌ها استفاده کنی.'}if(state.route==='shop')rerenderShop()}
@@ -132,6 +132,51 @@ $('#itemPhoto').addEventListener('change',e=>photoChanged(e.target.files[0]));
 document.addEventListener('submit',e=>{if(e.target.id==='profileForm')submitProfile(e)});
 let searchTimer;document.addEventListener('input',e=>{if(e.target.id==='productSearch'){state.query=e.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.products=[];refreshShop()},450)}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor()});
+async function bindUser(userId){
+  if(!Number.isSafeInteger(Number(userId))||Number(userId)<=0)throw Error('حساب معتبر نیست.');
+  const nextName='vestaland-personal-user-v1-'+Number(userId);
+  if(dbName===nextName)return;
+  const legacyItems=dbName==='vestaland-personal-v1'?state.items.slice():[];
+  if(db)db.close();
+  dbName=nextName;
+  db=await openDb();
+  await loadItems();
+  const migrationFlag='vestaland-migration-choice-'+Number(userId);
+  if(legacyItems.length&&!state.items.length&&!localStorage.getItem(migrationFlag)){
+    if(confirm('چند وسیله از نسخه قبلی روی همین دستگاه پیدا شد. دوست داری یک نسخه از اون‌ها به حساب جدیدت منتقل بشه؟ نسخه قدیمی پاک نمی‌شه.')){
+      for(const x of legacyItems)await storeItem(x);
+    }
+    localStorage.setItem(migrationFlag,'answered');
+  }
+  profileStoreKey='vestaland-style-profile-user-v1-'+Number(userId);
+  profile=loadProfile();
+  route('home');
+}
+function lockInventory(){
+  state.items=[];
+  state.look=null;
+  clearUrls();
+  if(db){db.close();db=null}
+  dbName='vestaland-personal-v1';
+  profileStoreKey='vestaland-style-profile-v1';
+  profile=initialProfile();
+  $('#appContent').innerHTML='';
+}
+window.VestalandInventory={
+  photo:()=>pendingImage,
+  group:()=>state.type,
+  suggest(data){
+    if(!data||typeof data!=='object')return;
+    if(data.name&&typeof data.name==='string')$('#itemName').value=data.name.slice(0,90);
+    const group=state.type==='beauty'?beauty:clothes;
+    if(group.some(x=>x[0]===data.category))$('#itemCategory').value=data.category;
+    if(Object.hasOwn(colors,data.color))$('#itemColor').value=data.color;
+    if(typeof data.brand==='string')$('#itemBrand').value=data.brand.slice(0,55);
+    toast('پیشنهادها داخل فرم قرار گرفت؛ قبل از ذخیره بررسیشون کن 🌷');
+  },
+  bindUser,
+  lock:lockInventory
+};
 async function boot(){try{db=await openDb();await loadItems();route('home')}catch(err){$('#appContent').innerHTML='<div class="empty"><span class="icon">🔒</span><h3>حافظه دستگاه در دسترس نیست</h3><p>برای نگهداری امن وسایلت، اجازه ذخیره‌سازی مرورگر یا اپ رو فعال کن و دوباره بازش کن.</p></div>'}if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}
 boot();
 })();
