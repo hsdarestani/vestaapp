@@ -31,6 +31,17 @@ class VestalandAccountTests(unittest.TestCase):
             c.execute("INSERT INTO users(phone,created_at,trial_until) VALUES(?,?,?)",(phone,api.now(),api.now()+7*86400))
             return c.execute("SELECT * FROM users WHERE phone=?",(phone,)).fetchone()
 
+    def test_sms_can_be_restricted_to_one_test_phone_before_lockdown(self):
+        with patch.dict(os.environ,{"OTP_TEST_PHONE":"09123456789","LOGIN_GATE_ENABLED":"1"}):
+            self.assertFalse(api.plans()["features"]["login_required"])
+            with patch.object(api,"json_http") as provider:
+                with self.assertRaises(api.Error) as err:
+                    api.send_otp("09123456780","127.0.0.1")
+                self.assertEqual(err.exception.status,403)
+                provider.assert_not_called()
+        with patch.dict(os.environ,{"OTP_TEST_PHONE":"","LOGIN_GATE_ENABLED":"1"}):
+            self.assertTrue(api.plans()["features"]["login_required"])
+
     def test_normalize_iran_phone(self):
         for phone in ["09123456789","+989123456789","989123456789","00989123456789","۹۱۲۳۴۵۶۷۸۹"]:
             self.assertEqual(api.normalize_phone(phone),"09123456789")
