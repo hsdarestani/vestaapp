@@ -32,10 +32,11 @@ export default {
       try{
         const result=await env.AI.run("@cf/google/gemma-4-26b-a4b-it",{
           messages:[{role:"user",content:[
-            {type:"text",text:prompt},
-            {type:"image_url",image_url:{url:"data:image/jpeg;base64,"+image}}
+            {type:"image_url",image_url:{url:"data:image/jpeg;base64,"+image}},
+            {type:"text",text:prompt}
           ]}],
-          max_completion_tokens:175,temperature:0,stream:false
+          chat_template_kwargs:{enable_thinking:false},
+          max_completion_tokens:240,temperature:0,stream:false
         });
         let answer=String(result.response||result.choices?.[0]?.message?.content||"");
         if(!answer) return json(502,{ok:false,error:"empty_vision",keys:Object.keys(result||{}).slice(0,9),shape:JSON.stringify(result||{}).slice(0,350)});
