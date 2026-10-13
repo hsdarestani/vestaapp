@@ -1,9 +1,6 @@
 name: Repair Vestaland illustration delivery
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['deploy/fix-images-once.flag']
 permissions:
   contents: read
 concurrency:
