@@ -1,0 +1,41 @@
+name: Test payment safety and licensed stock assets
+on:
+  push:
+    branches: [fix/zibal-and-stock-photos-20261013]
+    paths: ['.github/workflows/test-stock-and-payments.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate UI/payment code, licensed stock photos and transaction tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check commerce.js
+          node --test tests/profile.test.cjs tests/visual_assets.test.cjs
+          python3 -m unittest discover -s tests -p '*_test.py' -v
+          bash -n deploy/deploy-ui-refresh.sh
+          bash -n deploy/deploy-commerce.sh
+          python3 -m pip install -q --break-system-packages Pillow
+          VESTALAND_PHOTO_DEST=/tmp/vestaland-licensed-stock python3 scripts/prepare-stock-photos.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import json
+          d=Path('/tmp/vestaland-licensed-stock')
+          pics=list(d.glob('*.webp'))
+          assert len(pics)==9, f'Found {len(pics)} of nine photo assets'
+          meta=json.loads((d/'SOURCES.json').read_text())
+          assert len(meta)==9
+          for pic in pics:
+            with Image.open(pic) as image:
+              assert image.format=='WEBP' and min(image.size)>=230
+            assert meta[pic.stem]['license']=='https://www.pexels.com/license/'
+          print('All stock imagery locally valid and licensed; Zibal callback tests passed.')
+          PY
