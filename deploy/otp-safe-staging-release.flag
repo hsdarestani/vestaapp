@@ -1,0 +1,1 @@
+Apply backend SMS test allowlist capability. OTP_ENABLED=0, LOGIN_GATE_ENABLED=0, IMAGE_SCAN_ENABLED=0 until verified test number receives code. Store containers untouched.
