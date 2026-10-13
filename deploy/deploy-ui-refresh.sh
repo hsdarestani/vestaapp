@@ -63,7 +63,7 @@ for file in hero-fashion.webp wardrobe.webp beauty.webp outfit.webp shop-mixed.w
     echo "Invalid or inaccessible real photo: $file ($code)"; rollback; exit 1
   fi
 done
-if ! docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/ | grep -q '20261013-realphotos1'; then
+if ! docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/ | grep -q '20261013-stock2'; then
   rollback; exit 1
 fi
 if ! docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/api/account/health | grep -q '"ok":true'; then
