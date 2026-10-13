@@ -4,9 +4,6 @@ on:
   push:
     branches: [main]
     paths: ['deploy/payment-live-once.flag']
-  push:
-    branches: [main]
-    paths: ['deploy/cache-refresh-once.flag']
 permissions:
   contents: read
 concurrency:
@@ -112,7 +109,7 @@ jobs:
           assert c['features']['image_scan_enabled'] is True
           assert c['features']['subscriptions_enabled'] is True
           assert c['features']['store_checkout_enabled'] is False
-          print('Phone-required login and bounded Cloudflare AI enabled; payment and checkout stay disabled')
+          print('Phone-required login and bounded Cloudflare AI enabled; Zibal web subscription enabled, store checkout and Bazaar remain disabled')
           PY
           curl -fsS --max-time 20 https://app.vesta-cosmetics.ir/ | grep -q 'commerce.js'
           for site in vesta-cosmetics.ir cutellashop.ir; do
