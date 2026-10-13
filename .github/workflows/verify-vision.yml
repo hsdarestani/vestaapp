@@ -1,5 +1,5 @@
 name: Verify Cloudflare photo recognition
-# Recheck Gemma 4 response metadata after Worker redeploy.
+# Recheck output after disabling Gemma 4 reasoning.
 on:
   workflow_dispatch:
   push:
