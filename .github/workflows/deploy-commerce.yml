@@ -1,6 +1,9 @@
 name: Deploy Vestaland commerce safely
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/cache-refresh-once.flag']
 permissions:
   contents: read
 concurrency:
