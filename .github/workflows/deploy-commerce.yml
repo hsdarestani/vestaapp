@@ -20,6 +20,7 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           SMSIR_API_KEY: ${{ secrets.SMSIR_API_KEY }}
           SMSIR_TEMPLATE_ID: ${{ secrets.SMSIR_TEMPLATE_ID }}
+          SMS_TEST_PHONE: ${{ secrets.SMS_TEST_PHONE }}
           VESTALAND_OTP_PEPPER: ${{ secrets.VESTALAND_OTP_PEPPER }}
           ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
           CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
@@ -31,11 +32,12 @@ jobs:
           python3 -m unittest discover -s tests -p '*_test.py' -v
           docker compose -p vestaapp -f deploy/compose.yml config -q
           test "${HOST##*@}" = '193.177.242.64'
-          for name in HOST PASS SSH_KNOWN_HOSTS SMSIR_API_KEY SMSIR_TEMPLATE_ID VESTALAND_OTP_PEPPER ZIBAL_MERCHANT CF_AI_SHARED_SECRET; do
+          for name in HOST PASS SSH_KNOWN_HOSTS SMSIR_API_KEY SMSIR_TEMPLATE_ID SMS_TEST_PHONE VESTALAND_OTP_PEPPER ZIBAL_MERCHANT CF_AI_SHARED_SECRET; do
             test -n "${!name:-}" || { echo "::error::Missing GitHub secret: $name"; exit 1; }
           done
           test "${#CF_AI_SHARED_SECRET}" -ge 32
           test "${#VESTALAND_OTP_PEPPER}" -ge 32
+          [[ "$SMS_TEST_PHONE" =~ ^09[0-9]{9}$ ]] || { echo 'SMS_TEST_PHONE is not in 09xxxxxxxxx format'; exit 1; }
       - name: Prepare application bundle and secured env file
         shell: bash
         env:
@@ -52,13 +54,13 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import os,re,pathlib
-          keys=['SMSIR_API_KEY','SMSIR_TEMPLATE_ID','VESTALAND_OTP_PEPPER','ZIBAL_MERCHANT','CF_AI_SHARED_SECRET','VESTA_WC_CONSUMER_KEY','VESTA_WC_CONSUMER_SECRET','CUTELLA_WC_CONSUMER_KEY','CUTELLA_WC_CONSUMER_SECRET']
+          keys=['SMSIR_API_KEY','SMSIR_TEMPLATE_ID','SMS_TEST_PHONE','VESTALAND_OTP_PEPPER','ZIBAL_MERCHANT','CF_AI_SHARED_SECRET','VESTA_WC_CONSUMER_KEY','VESTA_WC_CONSUMER_SECRET','CUTELLA_WC_CONSUMER_KEY','CUTELLA_WC_CONSUMER_SECRET']
           values={key:os.getenv(key,'') for key in keys}
           for k,v in values.items():
               if v and not re.fullmatch(r"[a-zA-Z0-9_./:=+@!-]+",v):
                   raise SystemExit('Secret '+k+' contains unsupported env file characters; not uploading it')
           values.update(CF_AI_WORKER_URL='https://vestaland-ai.hsdf7rb.workers.dev/',
-             OTP_ENABLED='0',SUBSCRIPTIONS_ENABLED='0',BAZAAR_ENABLED='0',
+             OTP_ENABLED='1',LOGIN_GATE_ENABLED='0',SUBSCRIPTIONS_ENABLED='0',BAZAAR_ENABLED='0',
              AI_ENABLED='0',IMAGE_SCAN_ENABLED='0',AI_SCAN_DAILY_GLOBAL='20',APP_CHECKOUT_ENABLED='0',
              AI_GLOBAL_DAILY_LIMIT='240',AI_DAILY_PAID='2')
           target=pathlib.Path(os.environ['RUNNER_TEMP'])/'vestaland-account.env'
@@ -100,7 +102,8 @@ jobs:
           import json
           c=json.load(open('/tmp/account-config.json'))
           assert c['trial_days']==7,c
-          assert c['features']['otp_enabled'] is False
+          assert c['features']['otp_enabled'] is True
+          assert c['features']['login_required'] is False
           assert c['features']['subscriptions_enabled'] is False
           assert c['features']['store_checkout_enabled'] is False
           print('Gated account service verified without activating untested payments or SMS')
