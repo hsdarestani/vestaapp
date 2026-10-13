@@ -3,6 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths: ['deploy/payment-live-once.flag']
+  push:
+    branches: [main]
     paths: ['deploy/cache-refresh-once.flag']
 permissions:
   contents: read
@@ -61,7 +64,7 @@ jobs:
               if v and not re.fullmatch(r"[a-zA-Z0-9_./:=+@!-]+",v):
                   raise SystemExit('Secret '+k+' contains unsupported env file characters; not uploading it')
           values.update(CF_AI_WORKER_URL='https://vestaland-ai.hsdf7rb.workers.dev/',
-             OTP_ENABLED='1',OTP_TEST_PHONE='',LOGIN_GATE_ENABLED='1',SUBSCRIPTIONS_ENABLED='0',BAZAAR_ENABLED='0',
+             OTP_ENABLED='1',OTP_TEST_PHONE='',LOGIN_GATE_ENABLED='1',SUBSCRIPTIONS_ENABLED='1',BAZAAR_ENABLED='0',
              AI_ENABLED='1',IMAGE_SCAN_ENABLED='1',AI_SCAN_DAILY_GLOBAL='20',APP_CHECKOUT_ENABLED='0',
              AI_GLOBAL_DAILY_LIMIT='240',AI_DAILY_PAID='2')
           target=pathlib.Path(os.environ['RUNNER_TEMP'])/'vestaland-account.env'
@@ -107,7 +110,7 @@ jobs:
           assert c['features']['login_required'] is True
           assert c['features']['ai_enabled'] is True
           assert c['features']['image_scan_enabled'] is True
-          assert c['features']['subscriptions_enabled'] is False
+          assert c['features']['subscriptions_enabled'] is True
           assert c['features']['store_checkout_enabled'] is False
           print('Phone-required login and bounded Cloudflare AI enabled; payment and checkout stay disabled')
           PY
