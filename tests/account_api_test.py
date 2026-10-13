@@ -22,7 +22,7 @@ class VestalandAccountTests(unittest.TestCase):
         api.CF_AI_SHARED_SECRET="x"*40
         api.AI_GLOBAL_LIMIT=240
         api.AI_DAILY_PAID=2
-        self.environment=patch.dict(os.environ,{"VESTALAND_OTP_PEPPER":"test-fake-pepper-longer-than-thirty-two-characters","OTP_ENABLED":"1","SUBSCRIPTIONS_ENABLED":"1","AI_ENABLED":"1","BAZAAR_ENABLED":"1"})
+        self.environment=patch.dict(os.environ,{"VESTALAND_OTP_PEPPER":"test-fake-pepper-longer-than-thirty-two-characters","OTP_ENABLED":"1","SUBSCRIPTIONS_ENABLED":"1","AI_ENABLED":"1","IMAGE_SCAN_ENABLED":"1","BAZAAR_ENABLED":"1"})
         self.environment.start()
     def tearDown(self):
         self.environment.stop();self.tmp.cleanup()
@@ -122,6 +122,35 @@ class VestalandAccountTests(unittest.TestCase):
             with self.assertRaises(api.Error):api.ai_recommend(second,[],"help")
         with patch.object(api,"json_http",return_value={"ok":True,"suggestion":"کفش سفید."}):
             self.assertTrue(api.ai_recommend(second,[],"help")["ok"])
+    def test_vision_scan_requires_real_user_and_obeys_daily_free_cap(self):
+        user=self.create_user()
+        mock_image="a"*120
+        with patch.object(api,"json_http",return_value={
+            "ok":True,"suggestion":{"name":"شومیز صورتی","category":"top","color":"pink","brand":"","confidence":"high"}}):
+            result=api.vision_scan(user,"closet",mock_image)
+            self.assertEqual(result["suggestion"]["category"],"top")
+            with self.assertRaises(api.Error) as e:
+                api.vision_scan(user,"closet",mock_image)
+            self.assertEqual(e.exception.status,429)
+        with self.assertRaises(api.Error):
+            api.vision_scan(user,"beauty","invalid<>")
+
+    def test_vision_quota_refunded_when_external_worker_fails(self):
+        user=self.create_user()
+        with patch.object(api,"json_http",side_effect=api.Error("temporary",502)):
+            with self.assertRaises(api.Error):
+                api.vision_scan(user,"closet","a"*120)
+        with patch.object(api,"json_http",return_value={"ok":True,"suggestion":{"name":"کیف","category":"bag","color":"brown","brand":""}}):
+            self.assertTrue(api.vision_scan(user,"closet","a"*120)["ok"])
+
+    def test_image_and_sms_are_disabled_by_default_without_raising_trial(self):
+        user=self.create_user()
+        with patch.dict(os.environ,{"IMAGE_SCAN_ENABLED":"0","OTP_ENABLED":"0","AI_ENABLED":"0"}):
+            self.assertFalse(api.plans()["features"]["otp_enabled"])
+            self.assertFalse(api.plans()["features"]["image_scan_enabled"])
+            with self.assertRaises(api.Error):
+                api.vision_scan(user,"closet","a"*120)
+
     def test_live_payment_gateways_are_store_specific(self):
         old=os.environ.get("APP_CHECKOUT_ENABLED")
         os.environ["APP_CHECKOUT_ENABLED"]="1"

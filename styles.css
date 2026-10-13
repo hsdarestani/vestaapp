@@ -49,3 +49,16 @@ fieldset.profile-field{display:block;padding:0;border:0;min-width:0}
 @media(max-width:350px){.profile-avatar-lg{width:75px;height:75px;font-size:39px}.profile-chips{gap:5px}.profile-chip span{padding:7px 9px}.avatar-choice span{font-size:22px}.profile-form{padding:14px}.profile-colors{gap:4px}}
 
 @media(min-width:720px){.shell{padding-top:28px}.hero{min-height:245px}.hero-art{left:30px}.page-header{margin-top:25px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+/* Verified-account privacy gate: block any behind-the-modal inventory interaction. */
+body.auth-pending .shell,body.auth-required .shell{visibility:hidden;pointer-events:none}
+body.auth-pending:before{content:'🎀';position:fixed;top:44%;left:50%;transform:translate(-50%,-50%);font-size:48px;z-index:2}
+body.auth-required .commerce-overlay{z-index:200}
+body.auth-required .commerce-shade{background:linear-gradient(125deg,#ffe5f3,#f6e5fe);backdrop-filter:none}
+body.auth-required .commerce-panel{box-shadow:0 15px 60px #ad77ab44;border:2px solid #fff}
+.photo-entry-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;align-items:center}
+.photo-entry-actions .upload-button{display:flex;align-items:center;justify-content:center;text-align:center;min-height:43px;margin:0;border-radius:14px;cursor:pointer}
+.ai-scan-button{display:block;width:100%;margin:10px 0 5px;border-radius:16px;min-height:42px}
+.ai-scan-button:disabled{opacity:.62}
+.photo-upload>small{display:block;color:#97728a;line-height:1.9;margin-top:8px}
+
+body.auth-required #editorDialog{display:none!important}

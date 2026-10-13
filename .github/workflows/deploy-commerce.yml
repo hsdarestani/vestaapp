@@ -1,6 +1,9 @@
 name: Deploy Vestaland commerce safely
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/photo-entry-release-once.flag']
 permissions:
   contents: read
 concurrency:
@@ -59,7 +62,7 @@ jobs:
                   raise SystemExit('Secret '+k+' contains unsupported env file characters; not uploading it')
           values.update(CF_AI_WORKER_URL='https://vestaland-ai.hsdf7rb.workers.dev/',
              OTP_ENABLED='0',SUBSCRIPTIONS_ENABLED='0',BAZAAR_ENABLED='0',
-             AI_ENABLED='0',APP_CHECKOUT_ENABLED='0',
+             AI_ENABLED='0',IMAGE_SCAN_ENABLED='0',AI_SCAN_DAILY_GLOBAL='20',APP_CHECKOUT_ENABLED='0',
              AI_GLOBAL_DAILY_LIMIT='240',AI_DAILY_PAID='2')
           target=pathlib.Path(os.environ['RUNNER_TEMP'])/'vestaland-account.env'
           target.write_text(''.join(k+'='+v+'\n' for k,v in values.items()))

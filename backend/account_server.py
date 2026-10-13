@@ -111,6 +111,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS ai_global(
             day TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS ai_scan_usage(
+            user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(user_id,day)
+        );
+        CREATE TABLE IF NOT EXISTS ai_scan_total(
+            day TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS app_orders(
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id),
             request_id TEXT NOT NULL, store TEXT NOT NULL, order_id INTEGER,
@@ -237,6 +244,7 @@ def plans():
             "features":{"otp_enabled":os.getenv("OTP_ENABLED","0")=="1" and bool(SMS_KEY and SMS_TEMPLATE and len(os.getenv("VESTALAND_OTP_PEPPER",""))>=32),
                         "subscriptions_enabled":os.getenv("SUBSCRIPTIONS_ENABLED","0")=="1" and bool(ZIBAL_MERCHANT),
                         "ai_enabled":os.getenv("AI_ENABLED","0")=="1" and bool(CF_WORKER_URL and CF_AI_SHARED_SECRET),
+                        "image_scan_enabled":os.getenv("AI_ENABLED","0")=="1" and os.getenv("IMAGE_SCAN_ENABLED","0")=="1" and bool(CF_AI_SHARED_SECRET),
                         "store_checkout_enabled":os.getenv("APP_CHECKOUT_ENABLED","0")=="1",
                         "bazaar_enabled":os.getenv("BAZAAR_ENABLED","0")=="1" and bazaar_verify.ready()}}
 
@@ -342,6 +350,49 @@ def ai_recommend(user,items,question):
             c.execute("BEGIN IMMEDIATE")
             c.execute("UPDATE ai_usage SET count=max(0,count-1) WHERE user_id=? AND day=?",(user["id"],day))
             c.execute("UPDATE ai_global SET count=max(0,count-1) WHERE day=?",(day,))
+        raise
+
+def vision_scan(user, group, image):
+    if os.getenv("AI_ENABLED","0")!="1" or os.getenv("IMAGE_SCAN_ENABLED","0")!="1":
+        raise Error("تشخیص عکس هنوز فعال نشده است.",503)
+    ensure_configs("CF_WORKER_URL","CF_AI_SHARED_SECRET")
+    if group not in ("closet","beauty") or not isinstance(image,str) or not re.fullmatch(r"[a-zA-Z0-9+/]{100,170000}={0,2}",image):
+        raise Error("تصویر معتبر نیست؛ فقط تصویر کوچک JPG ارسال کن.",400)
+    # Never store uploaded photos, face data or content in the server database.
+    # Conservatively reserve a globally limited number of vision inferences,
+    # independent from lower-cost outfit text requests and SMS limits.
+    day=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    per_user=1 if public_user(user)["plan"]=="trial" else 2
+    cap=min(60,max(1,int(os.getenv("AI_SCAN_DAILY_GLOBAL","30"))))
+    with LOCK,conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        one=c.execute("SELECT count FROM ai_scan_usage WHERE user_id=? AND day=?",(user["id"],day)).fetchone()
+        total=c.execute("SELECT count FROM ai_scan_total WHERE day=?",(day,)).fetchone()
+        if (one and one["count"]>=per_user) or (total and total["count"]>=cap):
+            raise Error("سهمیه تشخیص عکس امروز تمام شده؛ فردا دوباره امتحان کن.",429)
+        c.execute("INSERT INTO ai_scan_usage(user_id,day,count) VALUES(?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1",(user["id"],day))
+        c.execute("INSERT INTO ai_scan_total(day,count) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET count=count+1",(day,))
+    try:
+        result=json_http(CF_WORKER_URL.rstrip("/")+"/scan",{"image":image,"group":group},
+              {"Authorization":"Bearer "+CF_AI_SHARED_SECRET,
+               "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36"},timeout=40)
+        if not result.get("ok") or not isinstance(result.get("suggestion"),dict):
+            raise Error("تشخیص تصویر انجام نشد.",502)
+        obj=result["suggestion"]
+        categories=("top","bottom","dress","outer","shoes","bag","jewel","other") if group=="closet" else ("makeup","skincare","hair","fragrance","tools","other")
+        valid_colors=("pink","white","black","cream","blue","green","red","brown","purple","other")
+        return {"ok":True,"suggestion":{
+            "name":str(obj.get("name") or "").strip()[:55],
+            "category":obj.get("category") if obj.get("category") in categories else "other",
+            "color":obj.get("color") if obj.get("color") in valid_colors else "other",
+            "brand":str(obj.get("brand") or "").strip()[:55],
+            "confidence":obj.get("confidence") if obj.get("confidence") in ("high","medium","low") else "low"
+        }}
+    except Exception:
+        with LOCK,conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            c.execute("UPDATE ai_scan_usage SET count=max(0,count-1) WHERE user_id=? AND day=?",(user["id"],day))
+            c.execute("UPDATE ai_scan_total SET count=max(0,count-1) WHERE day=?",(day,))
         raise
 
 def valid_store(st):
@@ -457,7 +508,8 @@ class API(BaseHTTPRequestHandler):
     def body(self):
         try:size=int(self.headers.get("Content-Length",0))
         except:size=0
-        if size<=0 or size>MAX_BODY:raise Error("درخواست نامعتبر است.")
+        limit=195000 if urllib.parse.urlsplit(self.path).path.rstrip("/")=="/api/account/ai/scan" else MAX_BODY
+        if size<=0 or size>limit:raise Error("درخواست نامعتبر است.")
         try:
             value=json.loads(self.rfile.read(size).decode())
             if not isinstance(value,dict):raise ValueError()
@@ -516,6 +568,9 @@ class API(BaseHTTPRequestHandler):
             return self.json(200,verify_bazaar_receipt(user,str(data.get("plan") or ""),str(data.get("purchase_token") or "")))
         if path=="/api/account/subscription/start":
             return self.json(200,subscribe(authenticate(self.headers),str(data.get("plan") or "")))
+        if path=="/api/account/ai/scan":
+            user=authenticate(self.headers,active=True)
+            return self.json(200,vision_scan(user,data.get("group"),data.get("image")))
         if path=="/api/account/ai/recommend":
             return self.json(200,ai_recommend(authenticate(self.headers,active=True),data.get("items"),data.get("question")))
         if path=="/api/account/orders/quote":
