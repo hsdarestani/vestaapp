@@ -1,4 +1,4 @@
-name: Deploy real Vesta and Cutella photos to Vestaland
+name: Deploy licensed Pexels stock photography to Vestaland
 on:
   workflow_dispatch:
 permissions:
@@ -27,13 +27,13 @@ jobs:
           bash -n deploy/deploy-ui-refresh.sh
           test "${HOST##*@}" = "193.177.242.64"
           test -n "$PASS" && test -n "$SSH_KNOWN_HOSTS"
-      - name: Fetch real storefront photography and validate image bytes
+      - name: Fetch licensed Pexels photography and validate image bytes
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install -q --break-system-packages Pillow
-          VESTALAND_PHOTO_DEST="$RUNNER_TEMP/staged/assets/photos" python3 scripts/prepare-real-photos.py
-      - name: Package only Vestaland frontend and optimized store photos
+          VESTALAND_PHOTO_DEST="$RUNNER_TEMP/staged/assets/photos" python3 scripts/prepare-stock-photos.py
+      - name: Package only Vestaland frontend and optimized stock photos
         shell: bash
         run: |
           set -euo pipefail
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 3 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/vesta-index.html
-          grep -q 'v=20261013-realphotos1' /tmp/vesta-index.html
+          grep -q 'v=20261013-stock2' /tmp/vesta-index.html
           ! grep -q 'به Cloudflare ارسال' /tmp/vesta-index.html
           for image in hero-fashion.webp wardrobe.webp beauty.webp outfit.webp shop-mixed.webp shop-vesta.webp shop-cutella.webp beauty-care.webp closet-blank.webp; do
             url="https://app.vesta-cosmetics.ir/assets/photos/$image"
