@@ -129,14 +129,14 @@ public class MainActivity extends ComponentActivity {
             });
             purchaseCallback.purchaseSucceed(purchase -> {
                 runOnUiThread(() -> {
-                    String js = "(() => {" +
-                            "localStorage.setItem('vestaland:plan'," + JSONObject.quote(plan) + ");" +
-                            "localStorage.setItem('vestaland:bazaar:last-order'," + JSONObject.quote(purchase.getOrderId()) + ");" +
-                            "localStorage.setItem('vestaland:bazaar:last-token'," + JSONObject.quote(purchase.getPurchaseToken()) + ");" +
-                            "const s=document.getElementById('subscriptionStatus');" +
-                            "if(s)s.textContent='اشتراک فعال';" +
-                            "window.toast&&window.toast('خرید اشتراک با موفقیت ثبت شد ✓');" +
-                            "})();";
+                    // Keep the purchase PENDING until our authenticated backend
+                    // verifies the receipt against CafeBazaar Developer API.
+                    // LocalStorage must never grant paid membership.
+                    String normalizedPlan = "1m".equals(plan) ? "monthly" : "quarterly";
+                    String js = "window.VestalandCommerce && " +
+                            "window.VestalandCommerce.confirmBazaarPurchase(" +
+                            JSONObject.quote(normalizedPlan) + "," +
+                            JSONObject.quote(purchase.getPurchaseToken()) + ");";
                     webView.evaluateJavascript(js, null);
                 });
                 return Unit.INSTANCE;
@@ -208,7 +208,7 @@ public class MainActivity extends ComponentActivity {
                 String host = uri.getHost() == null ? "" : uri.getHost();
 
                 if (isVestaland(host)) {
-                    if (uri.getQueryParameter("market_payment") != null) marketPaymentActive = false;
+                    marketPaymentActive = false;
                     return false;
                 }
 

@@ -1,0 +1,44 @@
+name: Check Iranian server access to Cloudflare AI
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Install SSH password client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Read-only connectivity test on app server
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ -n "${HOST:-}" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          [[ "${HOST##*@}" == "193.177.242.64" ]]
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$target" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          # Only unauthenticated POST; 401 means request reached the Worker.
+          # This sends neither end-user information nor AI secret.
+          body='{"items":[],"question":"hello"}'
+          code="$(curl --noproxy '*' -sS -o /tmp/vestaapp-worker-check-body -w '%{http_code}' --max-time 20 \
+              -H 'Content-Type: application/json' \
+              -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' \
+              --data "$body" https://vestaland-ai.hsdf7rb.workers.dev/)" || { echo 'Iran server cannot reach Worker'; exit 1; }
+          echo "Iran VPS to Cloudflare Worker HTTP=$code"
+          if [ "$code" = 401 ] && grep -q 'unauthorized' /tmp/vestaapp-worker-check-body; then
+            echo 'Iran VPS successfully reached Worker authentication layer'
+          else
+            echo 'Iran VPS could not reach correct Worker (no paid AI inference made)'
+            exit 1
+          fi
+          rm -f /tmp/vestaapp-worker-check-body
+          REMOTE

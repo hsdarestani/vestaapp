@@ -1,0 +1,51 @@
+name: Verify Vestaland Cloudflare AI inference
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check deployed Worker auth and one small inference
+        env:
+          CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          url='https://vestaland-ai.hsdf7rb.workers.dev/'
+          data=json.dumps({"question":"یک ست کوتاه برای مهمانی بگو.","items":[{"name":"شومیز صورتی","group":"closet","category":"top","color":"pink"},{"name":"شلوار کرم","group":"closet","category":"bottom","color":"cream"}]}).encode()
+          browser_ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+          assert len(os.environ.get('CF_AI_SHARED_SECRET',''))>=32
+          unauthorized=urllib.request.Request(url,data=data,headers={'Content-Type':'application/json','User-Agent':browser_ua},method='POST')
+          try:
+              with urllib.request.urlopen(unauthorized,timeout=20) as r:
+                  raise SystemExit('SECURITY FAIL: unauthenticated request succeeded')
+          except urllib.error.HTTPError as e:
+              print('Unauthenticated HTTP:',e.code)
+              if e.code not in (401,403):raise SystemExit('Unexpected unauthenticated response')
+              print('Unauthenticated content-type:',e.headers.get('Content-Type','unknown'))
+              print('Unauthenticated cf-mitigated:',e.headers.get('cf-mitigated','none'))
+              print('Unauthenticated response preview:',e.read(260).decode('utf-8','replace'))
+          req=urllib.request.Request(url,data=data,headers={'Content-Type':'application/json','User-Agent':browser_ua,'Authorization':'Bearer '+os.environ['CF_AI_SHARED_SECRET']},method='POST')
+          try:
+              with urllib.request.urlopen(req,timeout=35) as r:
+                  result=json.loads(r.read(12000))
+                  print('Authenticated inference HTTP:',r.status)
+          except urllib.error.HTTPError as e:
+              data=e.read(12000)
+              try: err=json.loads(data).get('error','unknown')
+              except: err='unparseable'
+              print('Authenticated content-type:',e.headers.get('Content-Type','unknown'))
+              print('Authenticated cf-mitigated:',e.headers.get('cf-mitigated','none'))
+              print('Authenticated response preview:',data[:260].decode('utf-8','replace'))
+              raise SystemExit('AI inference unavailable: HTTP '+str(e.code)+' '+str(err)[:90])
+          if result.get('ok') is not True or not isinstance(result.get('suggestion'),str) or not result['suggestion'].strip():
+              raise SystemExit('AI response missing suggestion')
+          print('Model:',result.get('model'))
+          print('Response characters:',len(result['suggestion']))
+          print('Worker authentication and live inference OK; result content withheld.')
+          PY

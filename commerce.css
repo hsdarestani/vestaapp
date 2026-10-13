@@ -1,0 +1,57 @@
+
+/* Commerce, SMS login, subscriptions, AI, and store-native checkout */
+.commerce-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-end;justify-content:center}
+.commerce-overlay[hidden]{display:none}
+.commerce-shade{position:absolute;inset:0;background:rgba(71,33,56,.57);backdrop-filter:blur(7px)}
+.commerce-panel{position:relative;background:linear-gradient(155deg,#fffaff,#fff1f8);border:2px solid #fff;padding:14px 20px calc(22px + env(safe-area-inset-bottom));border-radius:34px 34px 0 0;width:min(100%,520px);max-height:92dvh;overflow:auto;box-shadow:0 -16px 45px #99486d4d}
+.commerce-handle{height:5px;width:43px;border-radius:6px;background:#dfb0ca;margin:0 auto 10px}
+.commerce-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.commerce-head h2{font-size:19px;color:#8f396d;font-weight:900;margin:9px 0 14px}
+.commerce-head button{font-size:25px;font-weight:900;border:none;background:#fff;border-radius:13px;width:36px;height:36px;color:#b35187}
+.commerce-intro{text-align:center;font-size:61px;filter:drop-shadow(0 8px 9px #eca1c4);animation:bob 4s ease-in-out infinite}
+.commerce-lead{color:#a05c81;line-height:2;font-size:12px;margin:9px 0 20px}
+.commerce-note{color:#a8849b;line-height:2;font-size:11px;margin:10px 0}
+.commerce-warning{padding:11px 14px;border-radius:16px;background:#fff8e8;color:#996624;font-size:11px;line-height:1.8;border:1px solid #ffe4a3}
+.commerce-error{padding:11px 14px;border-radius:16px;background:#ffebef;border:1px solid #f5acbd;color:#af3e59;font-size:12px;line-height:1.9}
+.commerce-panel form{display:flex;flex-direction:column;gap:13px}
+.commerce-panel form label{display:flex;flex-direction:column;gap:7px;color:#744b64;font-size:12px;font-weight:800}
+.commerce-panel form input,.commerce-panel textarea{border:1px solid #edc7df;border-radius:16px;background:#fff;color:#71415d;width:100%;padding:13px;font:inherit;font-size:13px;outline:none;min-height:45px}
+.commerce-panel form input:focus,.commerce-panel textarea:focus{border-color:#d45d9d;box-shadow:0 0 0 3px #f9d5e6}
+.commerce-panel form .btn{margin-top:10px;min-height:46px;font-size:12px}
+.commerce-plans{display:grid;gap:13px;margin:20px 0}
+.commerce-plan{border:2px solid #fff;border-radius:22px;padding:16px;background:linear-gradient(140deg,#fff,#ffeaf4);box-shadow:0 6px 0 #f2d1e2;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.commerce-plan.featured{background:linear-gradient(145deg,#fff,#f3e5fc);box-shadow:0 6px 0 #e6d2f0}
+.commerce-plan strong,.commerce-plan b{display:block;font-size:15px;color:#a54178}
+.commerce-plan small{font-size:10px;color:#b48aa3}
+.commerce-plan button{grid-column:1/-1;width:100%}
+.commerce-account-card{padding:23px;text-align:center;font-weight:900;border-radius:25px;background:linear-gradient(135deg,#ffe3f2,#f1dcff);border:2px solid #fff;margin-bottom:13px;color:#994577}
+.commerce-account-card p{font-size:12px;color:#906b85;font-weight:500}
+.commerce-account-card+.btn{margin-bottom:12px}
+.commerce-tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:13px 0}
+.commerce-tabs button{padding:11px;border:1px solid #f0c9dd;border-radius:16px;background:#fff;color:#98577f;font-weight:900;font-size:12px}
+.commerce-tabs button.active{background:#f37cb5;color:#fff;border-color:#f37cb5}
+.commerce-cart-items{display:grid;gap:10px;margin:20px 0}
+.commerce-cart-line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px;background:#fff;border:1px solid #f7dce9;border-radius:17px;font-size:12px}
+.commerce-cart-line>span{overflow-wrap:anywhere;flex:1}
+.commerce-cart-line>div{display:flex;align-items:center;gap:8px}
+.commerce-cart-line button{border:none;background:#ffedf6;color:#b53f7a;border-radius:12px;width:32px;height:32px;font-size:17px}
+.commerce-cart-line b{min-width:14px;text-align:center}
+.commerce-empty{text-align:center;font-size:52px;color:#ad819b;padding:29px 10px}
+.commerce-empty p{font-size:12px}
+.commerce-quote,.commerce-order{background:#fff;border:1px solid #f5d6e6;padding:15px;border-radius:18px;color:#8a5675;margin-bottom:15px;font-size:12px}
+.commerce-order small{display:block;color:#a68a98;margin-top:8px}
+.commerce-ai-answer{background:linear-gradient(145deg,#fff,#fff0f8);padding:16px;border-radius:22px;border:1px solid #f3c9de;margin:16px 0}
+.commerce-ai-answer b{font-size:12px;color:#b3437e}
+.commerce-ai-answer p{font-size:12px;line-height:2.2;color:#725269;white-space:pre-wrap}
+.commerce-profile-card{background:#fff;border:1px solid white;border-radius:25px;padding:15px;box-shadow:0 7px 0 #f7d7e7,0 10px 20px #e9a3c133;margin:12px 0}
+.commerce-profile-status{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.commerce-profile-status>span{font-size:30px}
+.commerce-profile-status>div{display:flex;flex-direction:column;gap:5px}
+.commerce-profile-status b{color:#aa427b;font-size:14px}
+.commerce-profile-status small{color:#a5899c;font-size:10px}
+.commerce-profile-buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.commerce-profile-buttons button,.commerce-shop-tools button,.commerce-home-tools button{border:1px solid #f5cfe2;background:#fff0f8;color:#a84780;font-size:11px;padding:11px 8px;border-radius:16px;font-weight:900}
+.commerce-shop-tools,.commerce-home-tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.commerce-shop-tools button:first-child,.commerce-home-tools button:first-child{background:#fbe6f0}
+@media(min-width:800px){.commerce-overlay{align-items:center}.commerce-panel{border-radius:34px;max-height:min(750px,88vh);padding-bottom:24px}}
+@media(prefers-reduced-motion:reduce){.commerce-intro{animation:none}}

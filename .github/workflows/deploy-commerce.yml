@@ -1,0 +1,117 @@
+name: Deploy Vestaland commerce safely
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/commerce-release-once.flag'
+permissions:
+  contents: read
+concurrency:
+  group: vestaapp-commerce-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate code and required secrets
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SMSIR_API_KEY: ${{ secrets.SMSIR_API_KEY }}
+          SMSIR_TEMPLATE_ID: ${{ secrets.SMSIR_TEMPLATE_ID }}
+          VESTALAND_OTP_PEPPER: ${{ secrets.VESTALAND_OTP_PEPPER }}
+          ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
+          CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
+        run: |
+          set -euo pipefail
+          bash -n deploy/deploy-commerce.sh
+          node --check app.js
+          node --check commerce.js
+          python3 -m unittest discover -s tests -p '*_test.py' -v
+          docker compose -p vestaapp -f deploy/compose.yml config -q
+          test "${HOST##*@}" = '193.177.242.64'
+          for name in HOST PASS SSH_KNOWN_HOSTS SMSIR_API_KEY SMSIR_TEMPLATE_ID VESTALAND_OTP_PEPPER ZIBAL_MERCHANT CF_AI_SHARED_SECRET; do
+            test -n "${!name:-}" || { echo "::error::Missing GitHub secret: $name"; exit 1; }
+          done
+          test "${#CF_AI_SHARED_SECRET}" -ge 32
+          test "${#VESTALAND_OTP_PEPPER}" -ge 32
+      - name: Prepare application bundle and secured env file
+        shell: bash
+        env:
+          SMSIR_API_KEY: ${{ secrets.SMSIR_API_KEY }}
+          SMSIR_TEMPLATE_ID: ${{ secrets.SMSIR_TEMPLATE_ID }}
+          VESTALAND_OTP_PEPPER: ${{ secrets.VESTALAND_OTP_PEPPER }}
+          ZIBAL_MERCHANT: ${{ secrets.ZIBAL_MERCHANT }}
+          CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
+          VESTA_WC_CONSUMER_KEY: ${{ secrets.VESTA_WC_CONSUMER_KEY }}
+          VESTA_WC_CONSUMER_SECRET: ${{ secrets.VESTA_WC_CONSUMER_SECRET }}
+          CUTELLA_WC_CONSUMER_KEY: ${{ secrets.CUTELLA_WC_CONSUMER_KEY }}
+          CUTELLA_WC_CONSUMER_SECRET: ${{ secrets.CUTELLA_WC_CONSUMER_SECRET }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,pathlib
+          keys=['SMSIR_API_KEY','SMSIR_TEMPLATE_ID','VESTALAND_OTP_PEPPER','ZIBAL_MERCHANT','CF_AI_SHARED_SECRET','VESTA_WC_CONSUMER_KEY','VESTA_WC_CONSUMER_SECRET','CUTELLA_WC_CONSUMER_KEY','CUTELLA_WC_CONSUMER_SECRET']
+          values={key:os.getenv(key,'') for key in keys}
+          for k,v in values.items():
+              if v and not re.fullmatch(r"[a-zA-Z0-9_./:=+@!-]+",v):
+                  raise SystemExit('Secret '+k+' contains unsupported env file characters; not uploading it')
+          values.update(CF_AI_WORKER_URL='https://vestaland-ai.hsdf7rb.workers.dev/',
+             OTP_ENABLED='0',SUBSCRIPTIONS_ENABLED='0',BAZAAR_ENABLED='0',
+             AI_ENABLED='0',APP_CHECKOUT_ENABLED='0',
+             AI_GLOBAL_DAILY_LIMIT='240',AI_DAILY_PAID='2')
+          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'vestaland-account.env'
+          target.write_text(''.join(k+'='+v+'\n' for k,v in values.items()))
+          target.chmod(0o600)
+          PY
+          mkdir -p "$RUNNER_TEMP/staged"/{public,backend,deploy}
+          cp index.html app.js styles.css commerce.js commerce.css sw.js "$RUNNER_TEMP/staged/public/"
+          cp backend/account_server.py backend/bazaar_verify.py "$RUNNER_TEMP/staged/backend/"
+          cp deploy/account.Dockerfile deploy/app-nginx.conf deploy/compose.yml "$RUNNER_TEMP/staged/deploy/"
+          tar -czf "$RUNNER_TEMP/vestaland-commerce-release.tgz" -C "$RUNNER_TEMP/staged" .
+      - name: Install SSH password client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Deploy isolated Vestaland containers only
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"
+          [[ "$target" == *'@'* ]] || target="root@$target"
+          options=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" ssh "${options[@]}" "$target" 'umask 077; mkdir -p /srv/vestaapp/secrets; chmod 700 /srv/vestaapp/secrets'
+          sshpass -p "$PASS" scp "${options[@]}" "$RUNNER_TEMP/vestaland-account.env" "$target:/srv/vestaapp/secrets/account.env"
+          sshpass -p "$PASS" scp "${options[@]}" "$RUNNER_TEMP/vestaland-commerce-release.tgz" "$target:/tmp/vestaland-commerce-release.tgz"
+          sshpass -p "$PASS" ssh "${options[@]}" "$target" 'bash -s' < deploy/deploy-commerce.sh
+      - name: Check app login API and old storefronts from public internet
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://app.vesta-cosmetics.ir/api/account/health | grep -q '"ok":true'
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://app.vesta-cosmetics.ir/api/account/config -o /tmp/account-config.json
+          python3 - <<'PY'
+          import json
+          c=json.load(open('/tmp/account-config.json'))
+          assert c['trial_days']==7,c
+          assert c['features']['otp_enabled'] is False
+          assert c['features']['subscriptions_enabled'] is False
+          assert c['features']['store_checkout_enabled'] is False
+          print('Gated account service verified without activating untested payments or SMS')
+          PY
+          curl -fsS --max-time 20 https://app.vesta-cosmetics.ir/ | grep -q 'commerce.js'
+          for site in vesta-cosmetics.ir cutellashop.ir; do
+            code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://$site/")"
+            echo "$site HTTP=$code"
+            [[ "$code" = 200 || "$code" = 301 || "$code" = 302 ]]
+          done

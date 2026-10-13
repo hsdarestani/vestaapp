@@ -20,6 +20,38 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  account:
+    build:
+      context: /srv/vestaapp/current
+      dockerfile: deploy/account.Dockerfile
+    container_name: vc-vestaapp-account
+    restart: unless-stopped
+    depends_on:
+      market:
+        condition: service_healthy
+    user: "10001:10001"
+    env_file:
+      - path: /srv/vestaapp/secrets/account.env
+        required: false
+    environment:
+      VESTALAND_DB_PATH: /var/lib/vestaapp/accounts.db
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - /srv/vestaapp/data/accounts:/var/lib/vestaapp
+    networks:
+      - vestacutella
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8777/api/account/health',timeout=4)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 25s
+
   market:
     build:
       context: /srv/vestaapp/current
