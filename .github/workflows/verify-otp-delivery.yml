@@ -1,9 +1,6 @@
 name: Vestaland test-phone SMS delivery once
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/verify-otp-delivery.yml']
 permissions:
   contents: read
 jobs:
