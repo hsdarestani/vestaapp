@@ -73,7 +73,7 @@ function pricing(){
  return '<div class="commerce-plans">'+plans.map(p=>'<div class="commerce-plan '+(p.id==='quarterly'?'featured':'')+'"><div><strong>'+(p.id==='monthly'?'ماهانه':'سه‌ماهه')+'</strong><small>'+(p.id==='monthly'?'۳۰ روز':'۹۰ روز')+'</small></div><b>'+toman(p.price_toman)+'</b><button class="btn btn-primary" data-payplan="'+p.id+'" '+(!S.token||!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))||S.loading?'disabled':'')+'>انتخاب پلن</button></div>').join('')+'</div>';
 }
 function loginView(){
- return '<div class="commerce-intro"><img src="/assets/photos/beauty-care.webp" alt="" loading="lazy"></div><p class="commerce-lead">با شماره موبایلت وارد شو و ۷ روز اول رو رایگان از امکانات وستالند استفاده کن!</p>'+
+ return '<div class="commerce-intro"><img src="/assets/photos/beauty-care.webp?v=stock20261013" alt="" loading="lazy"></div><p class="commerce-lead">با شماره موبایلت وارد شو و ۷ روز اول رو رایگان از امکانات وستالند استفاده کن!</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  '<form id="commerceLoginForm"><label>شماره موبایل<input name="phone" inputmode="tel" autocomplete="tel" required placeholder="۰۹۱۲۱۲۳۴۵۶۷" value="'+safe(S.phone)+'"></label>'+
  (S.otp?'<label>کد پیامک‌شده<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9۰-۹]{6}" maxlength="6" placeholder="کد ۶ رقمی" required></label>':'')+
@@ -101,7 +101,7 @@ function cartView(){
  return '<p class="commerce-lead">سبد خرید وستا و کیوتلا جداست. هر سفارشت رو از همین‌جا پیگیری کن.</p>'+
  '<div class="commerce-tabs"><button data-cartstore="vesta" class="'+(st==='vesta'?'active':'')+'">وستا</button><button data-cartstore="cutella" class="'+(st==='cutella'?'active':'')+'">کیوتلا</button></div>'+
  (items.length?'<div class="commerce-cart-items">'+items.map(x=>'<div class="commerce-cart-line"><span>'+safe(x.name)+'</span><div><button data-qty="-1" data-productid="'+x.id+'" aria-label="کم کردن">−</button><b>'+new Intl.NumberFormat('fa-IR').format(x.quantity)+'</b><button data-qty="1" data-productid="'+x.id+'" aria-label="افزودن">＋</button></div></div>').join('')+'</div>':
- '<div class="commerce-empty"><img src="/assets/photos/shop-cutella.webp" alt="" loading="lazy"><p>سبد '+name+' هنوز خالیه.</p></div>')+
+ '<div class="commerce-empty"><img src="/assets/photos/shop-cutella.webp?v=stock20261013" alt="" loading="lazy"><p>سبد '+name+' هنوز خالیه.</p></div>')+
  '<p class="commerce-note">قیمت و موجودی نهایی با استعلام زنده از سایت فروشگاه محاسبه می‌شه. ممکنه هزینه ارسال هم اضافه بشه.</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  '<button class="btn btn-primary btn-block" data-commerce-quote '+(count===0||S.loading||!isEnabled('store_checkout_enabled')?'disabled':'')+'>استعلام موجودی و ادامه خرید ('+count+')</button>'+
@@ -129,7 +129,7 @@ function aiView(){
 function ordersView(){
  return '<p class="commerce-lead">سفارش‌های ثبت‌شده با همین حساب</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
- (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/photos/shop-mixed.webp" alt="" loading="lazy"><p>فعلاً سفارشی ثبت نشده.</p></div>')+
+ (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/photos/shop-mixed.webp?v=stock20261013" alt="" loading="lazy"><p>فعلاً سفارشی ثبت نشده.</p></div>')+
  '<p class="commerce-note">برای وضعیت پرداخت یا ارسال، رسید و حساب همان فروشگاه رو هم بررسی کن.</p>';
 }
 function renderModal(){
@@ -143,7 +143,7 @@ function refreshProfile(){
  if(!root||!root.querySelector('.profile-banner'))return;
  if(root.querySelector('#commerceProfileActions'))return;
  const box=document.createElement('div');box.id='commerceProfileActions';box.className='commerce-profile-card';
- box.innerHTML='<div class="commerce-profile-status"><img class="profile-inline-art" src="/assets/photos/beauty-care.webp" alt=""><div><b>'+(S.user?safe(S.user.phone):'حساب من')+'</b><small>'+safe(statusText())+'</small></div></div>'+
+ box.innerHTML='<div class="commerce-profile-status"><img class="profile-inline-art" src="/assets/photos/beauty-care.webp?v=stock20261013" alt=""><div><b>'+(S.user?safe(S.user.phone):'حساب من')+'</b><small>'+safe(statusText())+'</small></div></div>'+
  '<div class="commerce-profile-buttons"><button data-commerce-open="'+(S.user?'account':'login')+'">'+(S.user?'مدیریت حساب':'ورود / ثبت نام')+'</button><button data-commerce-open="plans">اشتراک‌ها</button><button data-commerce-open="orders">سفارش‌ها</button><button data-commerce-open="cart">سبد خرید ('+cartTotal()+')</button></div>';
  const banner=root.querySelector('.profile-banner');
  banner.insertAdjacentElement('afterend',box);
