@@ -178,6 +178,10 @@ def send_otp(phone,ip):
     hd=otp_digest(phone,code)
     with LOCK,conn() as c:
         c.execute("BEGIN IMMEDIATE")
+        # Limit total SMS cost/abuse in addition to per-phone and IP rate limits.
+        # 420 OTP/hour permits a 300-user launch burst, but prevents unbounded SMS bills.
+        check_rate(c,"sms:all:hour",420,3600)
+        check_rate(c,"sms:all:day",600,86400)
         check_rate(c,"sms:ip:"+digest(ip)[:24],15,3600)
         check_rate(c,"sms:phone:"+digest(phone)[:24],4,3600)
         old=c.execute("SELECT last_sent FROM otp_codes WHERE phone=?",(phone,)).fetchone()
