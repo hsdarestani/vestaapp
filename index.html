@@ -14,7 +14,7 @@
 <script src="/app.js?v=20261012-profile2" defer></script>
 <script src="/commerce.js?v=20261012-commerce1" defer></script>
 </head>
-<body>
+<body class="auth-pending">
 <div class="sparkle-bg" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="shell">
   <header class="topbar">
@@ -36,7 +36,7 @@
     <div class="dialog-grip"></div>
     <div class="dialog-head"><h2 id="dialogTitle">اضافه کردن</h2><button class="circle-btn close-btn" type="button" data-close aria-label="بستن">×</button></div>
     <form id="itemForm" class="item-form">
-      <div class="photo-upload"><div class="upload-preview" id="photoPreview"><span>📸</span><small>عکس وسیله‌ات رو بذار</small></div><label class="upload-button">انتخاب عکس<input id="itemPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" /></label><small>عکس‌ها فقط روی همین دستگاه ذخیره می‌شن.</small></div>
+      <div class="photo-upload"><div class="upload-preview" id="photoPreview"><span>📸</span><small>عکس وسیله‌ات رو بذار</small></div><div class="photo-entry-actions"><label class="upload-button">📸 عکس گرفتن<input id="itemCamera" type="file" accept="image/*" capture="environment"></label><label class="upload-button">🖼️ از گالری<input id="itemPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><button type="button" class="btn btn-outline ai-scan-button" id="aiScanButton" disabled>✨ تشخیص هوشمند از روی عکس</button><small>عکس اصلی روی همین دستگاه ذخیره می‌شه. فقط با زدن دکمه AI، نسخه کوچک عکس برای تشخیص به Cloudflare ارسال می‌شه. نتیجه رو قبل از ذخیره تأیید کن.</small></div>
       <label>اسم وسیله <input id="itemName" maxlength="90" required placeholder="مثلاً شومیز صورتی" /></label>
       <label>دسته‌بندی <select id="itemCategory" required></select></label>
       <div class="form-grid"><label>رنگ <select id="itemColor"><option value="pink">صورتی</option><option value="white">سفید</option><option value="black">مشکی</option><option value="cream">کرم</option><option value="blue">آبی</option><option value="green">سبز</option><option value="red">قرمز</option><option value="brown">قهوه‌ای</option><option value="purple">یاسی</option><option value="other">متفرقه</option></select></label><label>برند (اختیاری)<input id="itemBrand" maxlength="55" placeholder="برند" /></label></div>
