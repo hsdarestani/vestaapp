@@ -1,0 +1,77 @@
+name: Deploy softer Vestaland interface only
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/visual-refresh-once.flag'
+permissions:
+  contents: read
+concurrency:
+  group: vestaland-static-visual-refresh
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate static-only assets and nontechnical photo hint
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check commerce.js
+          node --test tests/profile.test.cjs
+          node --test tests/visual_assets.test.cjs
+          bash -n deploy/deploy-ui-refresh.sh
+          test "${HOST##*@}" = "193.177.242.64"
+          test -n "$PASS" && test -n "$SSH_KNOWN_HOSTS"
+      - name: Package only Vestaland frontend and existing images
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/staged/assets/illustrations"
+          for file in index.html app.js styles.css commerce.js commerce.css sw.js; do
+            cp "$file" "$RUNNER_TEMP/staged/$file"
+          done
+          for file in onboarding.svg selfcare.svg market.svg market-wow.svg gate-wow.svg; do
+            cp "assets/illustrations/$file" "$RUNNER_TEMP/staged/assets/illustrations/$file"
+          done
+          tar -czf "$RUNNER_TEMP/vestaland-visual-assets.tar.gz" -C "$RUNNER_TEMP/staged" .
+      - name: Install SSH transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Deploy frontend only, preserve both stores
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          opts=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" scp "${opts[@]}" "$RUNNER_TEMP/vestaland-visual-assets.tar.gz" "$target:/tmp/vestaland-visual-assets.tar.gz"
+          sshpass -p "$PASS" ssh "${opts[@]}" "$target" 'bash -s' < deploy/deploy-ui-refresh.sh
+      - name: Test live app, image assets and storefronts
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/vesta-index.html
+          grep -q 'v=20261013-visual2' /tmp/vesta-index.html
+          ! grep -q 'به Cloudflare ارسال' /tmp/vesta-index.html
+          curl --fail --silent --show-error --max-time 18 https://app.vesta-cosmetics.ir/assets/illustrations/selfcare.svg -o /tmp/vesta-selfcare.svg
+          grep -q '<svg' /tmp/vesta-selfcare.svg
+          curl --fail --silent --show-error --max-time 18 https://app.vesta-cosmetics.ir/api/account/config | grep -q '"login_required":true'
+          for h in vesta-cosmetics.ir cutellashop.ir; do
+            code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://$h/")"
+            echo "$h HTTP=$code"
+            [[ "$code" = 200 || "$code" = 301 || "$code" = 302 ]]
+          done

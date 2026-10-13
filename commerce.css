@@ -55,3 +55,12 @@
 .commerce-shop-tools button:first-child,.commerce-home-tools button:first-child{background:#fbe6f0}
 @media(min-width:800px){.commerce-overlay{align-items:center}.commerce-panel{border-radius:34px;max-height:min(750px,88vh);padding-bottom:24px}}
 @media(prefers-reduced-motion:reduce){.commerce-intro{animation:none}}
+
+
+/* Existing illustrations in place of repeated emoji decorations. */
+.commerce-intro{display:grid;place-items:center;animation:none;filter:none;margin:2px auto 8px}
+.commerce-intro img{display:block;width:min(190px,55vw);height:135px;object-fit:contain}
+.commerce-empty img{display:block;width:min(190px,65vw);height:105px;object-fit:contain;margin:0 auto 9px;border-radius:20px}
+.commerce-profile-status .profile-inline-art{width:48px;height:48px;object-fit:cover;border-radius:16px;background:#ffeff6;border:1px solid #fff;box-shadow:0 3px 7px #ce89a62b}
+.commerce-profile-status>div{min-width:0}
+.commerce-account-card{line-height:1.75}
