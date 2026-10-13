@@ -36,6 +36,8 @@ async function api(path,opts={}){
  finally{clearTimeout(timeout)}
 }
 function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
+function membershipPaymentEnabled(){return isEnabled('subscriptions_enabled')||(isBazaarAndroid()&&isEnabled('bazaar_enabled'))}
+function signedInAccess(){return !!S.user&&(!membershipPaymentEnabled()||allowed())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
 function gateRequired(){
@@ -45,7 +47,7 @@ function gateRequired(){
 function updateGate(){
  if(isEnabled("login_required"))localStorage.setItem('vestaland-requires-login-v1','1');
  document.body.classList.remove('auth-pending');
- document.body.classList.toggle('auth-required',gateRequired()&&!allowed());
+ document.body.classList.toggle('auth-required',gateRequired()&&!signedInAccess());
 }
 
 const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean(window.BazaarBridge);
@@ -53,7 +55,7 @@ const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean
 function open(kind){
  S.modal=kind;S.error='';renderModal();
 }
-function close(){if(gateRequired()&&!allowed()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
+function close(){if(gateRequired()&&!signedInAccess()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
 function modalBase(title,content){
  let dlg=$('#commerceLayer');
  if(!dlg){dlg=document.createElement('section');dlg.id='commerceLayer';dlg.className='commerce-overlay';dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');document.body.append(dlg)}
@@ -192,7 +194,7 @@ async function bootstrap(){
   observer.observe(root,{childList:true,subtree:false});
  }
  decorate();
- if(gateRequired()&&!allowed())open(S.user?'plans':'login');
+ if(gateRequired()&&!signedInAccess())open(S.user?'plans':'login');
 }
 async function refreshUser(){if(!S.token)return;const result=await api('me');S.user=result.user;updateGate();decorate()}
 async function loginSubmit(form){
@@ -208,7 +210,7 @@ async function loginSubmit(form){
       await window.VestalandInventory.bindUser(S.user.id);
    }
    updateGate();notify('خوش اومدی به وستالند 💕');
-   if(!S.user.active)S.modal='plans';else close();
+   if(!signedInAccess())S.modal='plans';else close();
   }
  }catch(e){S.error=e.message}finally{S.loading=false;renderModal();decorate()}
 }
@@ -311,7 +313,7 @@ async function logout(){
 // Trial and paid access enforced by the server for all protected endpoints;
 // this capture-phase overlay also stops navigating protected UI before login.
 document.addEventListener('click',event=>{
- if(!gateRequired()||allowed()||event.target.closest('#commerceLayer'))return;
+ if(!gateRequired()||signedInAccess()||event.target.closest('#commerceLayer'))return;
  const target=event.target.closest('button,a');if(!target)return;
  if(target.hasAttribute('data-commerce-open')||target.hasAttribute('data-commerce-close'))return;
  const path=target.dataset.route;
