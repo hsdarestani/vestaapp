@@ -1,0 +1,1 @@
+Enable web/PWA Zibal merchant for Vestaland subscription only, at 199000 and 499000 toman with server-side verification and pending callback recovery. Preserve Bazaar disabled, Woo in-app checkout disabled, SMS working, both Woo stores unchanged. Real money requires user checkout; don't fake paid transaction.
