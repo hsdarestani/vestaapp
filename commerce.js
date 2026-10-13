@@ -38,9 +38,14 @@ async function api(path,opts={}){
 function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
+function gateRequired(){
+ if(S.config)return authReady();
+ return localStorage.getItem('vestaland-requires-login-v1')==='1';
+}
 function updateGate(){
+ if(authReady())localStorage.setItem('vestaland-requires-login-v1','1');
  document.body.classList.remove('auth-pending');
- document.body.classList.toggle('auth-required',!S.config||(authReady()&&!allowed()));
+ document.body.classList.toggle('auth-required',gateRequired()&&!allowed());
 }
 
 const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean(window.BazaarBridge);
@@ -48,7 +53,7 @@ const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean
 function open(kind){
  S.modal=kind;S.error='';renderModal();
 }
-function close(){if(authReady()&&!allowed()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
+function close(){if(gateRequired()&&!allowed()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
 function modalBase(title,content){
  let dlg=$('#commerceLayer');
  if(!dlg){dlg=document.createElement('section');dlg.id='commerceLayer';dlg.className='commerce-overlay';dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');document.body.append(dlg)}
@@ -187,7 +192,7 @@ async function bootstrap(){
   observer.observe(root,{childList:true,subtree:false});
  }
  decorate();
- if(!S.config||authReady()&&!allowed())open(S.user?'plans':'login');
+ if(gateRequired()&&!allowed())open(S.user?'plans':'login');
 }
 async function refreshUser(){if(!S.token)return;const result=await api('me');S.user=result.user;updateGate();decorate()}
 async function loginSubmit(form){
@@ -306,7 +311,7 @@ async function logout(){
 // Trial and paid access enforced by the server for all protected endpoints;
 // this capture-phase overlay also stops navigating protected UI before login.
 document.addEventListener('click',event=>{
- if((!authReady()&&S.config)||allowed()||event.target.closest('#commerceLayer'))return;
+ if(!gateRequired()||allowed()||event.target.closest('#commerceLayer'))return;
  const target=event.target.closest('button,a');if(!target)return;
  if(target.hasAttribute('data-commerce-open')||target.hasAttribute('data-commerce-close'))return;
  const path=target.dataset.route;
