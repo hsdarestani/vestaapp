@@ -1,0 +1,1 @@
+After real SMS test and verified in-app login on 2026-10-13, enable OTP+LOGIN_GATE and capped Cloudflare photo/text AI; disable test-number allowlist. Keep Zibal subscriptions/Bazaar/Woo in-app payment off until tested. No change to stores or databases.
