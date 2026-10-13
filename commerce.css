@@ -64,3 +64,8 @@
 .commerce-profile-status .profile-inline-art{width:48px;height:48px;object-fit:cover;border-radius:16px;background:#ffeff6;border:1px solid #fff;box-shadow:0 3px 7px #ce89a62b}
 .commerce-profile-status>div{min-width:0}
 .commerce-account-card{line-height:1.75}
+
+/* Genuine product imagery from Vesta and Cutella storefronts. */
+.commerce-intro img{width:min(175px,50vw);height:135px;object-fit:cover;object-position:center 30%;border-radius:23px;box-shadow:0 7px 18px #d99db544}
+.commerce-empty img{height:122px;object-fit:cover;object-position:center 30%;border-radius:20px;box-shadow:0 5px 17px #d99db52b}
+.commerce-profile-status .profile-inline-art{object-fit:cover;object-position:center 27%}

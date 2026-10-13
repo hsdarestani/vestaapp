@@ -1,6 +1,9 @@
-name: Deploy softer Vestaland interface only
+name: Deploy real Vesta and Cutella photos to Vestaland
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/real-photos-release-once.flag']
 permissions:
   contents: read
 concurrency:
@@ -27,16 +30,19 @@ jobs:
           bash -n deploy/deploy-ui-refresh.sh
           test "${HOST##*@}" = "193.177.242.64"
           test -n "$PASS" && test -n "$SSH_KNOWN_HOSTS"
-      - name: Package only Vestaland frontend and existing images
+      - name: Fetch real storefront photography and validate image bytes
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/staged/assets/illustrations"
+          python3 -m pip install -q --break-system-packages Pillow
+          VESTALAND_PHOTO_DEST="$RUNNER_TEMP/staged/assets/photos" python3 scripts/prepare-real-photos.py
+      - name: Package only Vestaland frontend and optimized store photos
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/staged"
           for file in index.html app.js styles.css commerce.js commerce.css sw.js; do
             cp "$file" "$RUNNER_TEMP/staged/$file"
-          done
-          for file in onboarding.svg selfcare.svg market.svg market-wow.svg gate-wow.svg; do
-            cp "assets/illustrations/$file" "$RUNNER_TEMP/staged/assets/illustrations/$file"
           done
           tar -czf "$RUNNER_TEMP/vestaland-visual-assets.tar.gz" -C "$RUNNER_TEMP/staged" .
       - name: Install SSH transport
@@ -61,10 +67,15 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 3 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/vesta-index.html
-          grep -q 'v=20261013-visual2' /tmp/vesta-index.html
+          grep -q 'v=20261013-realphotos1' /tmp/vesta-index.html
           ! grep -q 'به Cloudflare ارسال' /tmp/vesta-index.html
-          curl --fail --silent --show-error --max-time 18 https://app.vesta-cosmetics.ir/assets/illustrations/selfcare.svg -o /tmp/vesta-selfcare.svg
-          grep -q '<svg' /tmp/vesta-selfcare.svg
+          for image in hero-fashion.webp wardrobe.webp beauty.webp outfit.webp shop-mixed.webp shop-vesta.webp shop-cutella.webp beauty-care.webp closet-blank.webp; do
+            url="https://app.vesta-cosmetics.ir/assets/photos/$image"
+            response="$(curl --fail --silent --show-error --max-time 20 -o /tmp/vestaland-verified.webp -w '%{http_code} %{content_type}' "$url")"
+            [[ "$response" == '200 image/webp'* ]] || { echo "Photo $image not served as WebP: $response"; exit 1; }
+            [[ "$(head -c 4 /tmp/vestaland-verified.webp)" == RIFF ]] || { echo "$image not a real WebP"; exit 1; }
+            echo "$image verified"
+          done
           curl --fail --silent --show-error --max-time 18 https://app.vesta-cosmetics.ir/api/account/config | grep -q '"login_required":true'
           for h in vesta-cosmetics.ir cutellashop.ir; do
             code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://$h/")"

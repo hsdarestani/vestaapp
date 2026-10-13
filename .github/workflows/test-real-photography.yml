@@ -1,0 +1,34 @@
+name: Test actual Vesta and Cutella source photography
+on:
+  push:
+    branches: [design/real-store-photos-20261013]
+    paths: ['.github/workflows/test-real-photography.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  photos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax, app photo rules and real site asset accessibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check commerce.js
+          node --test tests/profile.test.cjs tests/visual_assets.test.cjs
+          bash -n deploy/deploy-ui-refresh.sh
+          python3 -m pip install -q --break-system-packages Pillow
+          VESTALAND_PHOTO_DEST=/tmp/vestaland-test-photos python3 scripts/prepare-real-photos.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          p=Path('/tmp/vestaland-test-photos')
+          assert len(list(p.glob('*.webp')))==9
+          for f in p.glob('*.webp'):
+              with Image.open(f) as image:
+                  assert image.format=='WEBP' and min(image.size)>=230
+          print('SUCCESS: 9 actual webshop photos ready for production.')
+          PY
