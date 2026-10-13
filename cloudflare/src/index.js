@@ -10,7 +10,47 @@ export default {
     if(!env.AI || !env.AI_SHARED_SECRET || env.AI_SHARED_SECRET.length<32) return json(503,{ok:false,error:"unconfigured"});
     const token=request.headers.get("Authorization")||"";
     if(token!=="Bearer "+env.AI_SHARED_SECRET)return json(401,{ok:false,error:"unauthorized"});
-    if(Number(request.headers.get("content-length")||0)>12000)return json(413,{ok:false,error:"too_large"});
+    const scan = new URL(request.url).pathname === "/scan";
+    if(Number(request.headers.get("content-length")||0)>(scan?200000:12000))return json(413,{ok:false,error:"too_large"});
+    if(scan){
+      let body;
+      try{body=await request.json()}catch{return json(400,{ok:false,error:"invalid_json"})}
+      const image=body?.image;
+      const group=body?.group;
+      if(!["closet","beauty"].includes(group)||typeof image!=="string"||
+          image.length<100||image.length>170000||!/^[A-Za-z0-9+/]+=*$/.test(image))
+        return json(400,{ok:false,error:"invalid_image"});
+      const allowedColors="pink white black cream blue green red brown purple other";
+      const categories=group==="closet"?"top bottom dress outer shoes bag jewel other":"makeup skincare hair fragrance tools other";
+      const prompt="Look at the pictured ITEM, not the person or background. "+
+        "Return ONLY one compact valid JSON object with exactly keys: name,category,color,brand,confidence. "+
+        "name: short natural Persian product name, max 50 chars. "+
+        "category must be one of "+categories+". "+
+        "color must be one of "+allowedColors+". "+
+        "brand: exact visible brand name if legible, otherwise empty string; never invent a brand. "+
+        "confidence: high/medium/low. Do not guess expiry, PAO, routine, ingredients or a medical benefit.";
+      try{
+        const result=await env.AI.run("@cf/google/gemma-4-26b-a4b-it",{
+          messages:[{role:"user",content:[
+            {type:"text",text:prompt},
+            {type:"image_url",image_url:{url:"data:image/jpeg;base64,"+image}}
+          ]}],
+          max_completion_tokens:175,temperature:0,stream:false
+        });
+        let answer=String(result.response||result.choices?.[0]?.message?.content||"");
+        if(!answer) return json(502,{ok:false,error:"empty_vision"});
+        const match=answer.match(/\{[\s\S]*?\}/);
+        if(!match)return json(502,{ok:false,error:"invalid_vision_output"});
+        const parsed=JSON.parse(match[0]);
+        return json(200,{ok:true,suggestion:{
+          name:String(parsed.name||"").slice(0,55),
+          category:String(parsed.category||"other").toLowerCase(),
+          color:String(parsed.color||"other").toLowerCase(),
+          brand:String(parsed.brand||"").slice(0,55),
+          confidence:["high","medium","low"].includes(parsed.confidence)?parsed.confidence:"low"
+        }});
+      }catch(e){return json(503,{ok:false,error:"vision_unavailable"})}
+    }
     let body;
     try {body=await request.json()}catch{return json(400,{ok:false,error:"invalid_json"})}
     if(!body || !Array.isArray(body.items))return json(400,{ok:false,error:"invalid_items"});
