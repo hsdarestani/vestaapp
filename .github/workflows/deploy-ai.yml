@@ -2,9 +2,6 @@ name: Deploy Vestaland Cloudflare AI
 # Final photo Worker release: no diagnostics, model inference already verified.
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/login-gate-photo-ai-entry]
-    paths: ['.github/workflows/deploy-ai.yml']
 permissions:
   contents: read
 concurrency:
