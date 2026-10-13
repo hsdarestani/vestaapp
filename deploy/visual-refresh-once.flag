@@ -1,0 +1,1 @@
+Deploy frontend-only Vestaland copy and visual refinements (fewer emojis, locally available illustrations and product/user photos). Only update app.vesta-cosmetics.ir static web assets. No Nginx, WordPress, MariaDB or payment changes.
