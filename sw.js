@@ -1,5 +1,5 @@
-const VERSION='vestaland-commerce-v1-20261012';
-const CORE=['/','/index.html','/app.js?v=20261012-profile2','/styles.css?v=20261012-profile2','/manifest.webmanifest','/icon.svg','/commerce.js?v=20261012-commerce1','/commerce.css?v=20261012-commerce1'];
+const VERSION='vestaland-photo-gate-20261013';
+const CORE=['/','/index.html','/app.js?v=20261013-photo1','/styles.css?v=20261013-photo1','/manifest.webmanifest','/icon.svg','/commerce.js?v=20261013-photo1','/commerce.css?v=20261013-photo1'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(VERSION).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('vestaland-')&&k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin)return;if(u.pathname.startsWith('/api/')){e.respondWith(fetch(e.request,{cache:'no-store'}));return}if(e.request.mode==='navigate'){e.respondWith(fetch(e.request,{cache:'no-store'}).catch(()=>caches.match('/index.html')));return}e.respondWith(caches.match(e.request).then(cached=>cached||fetch(e.request)));});
