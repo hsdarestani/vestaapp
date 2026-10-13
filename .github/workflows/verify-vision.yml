@@ -1,0 +1,56 @@
+name: Verify Cloudflare photo recognition
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/login-gate-photo-ai-entry]
+    paths: ['.github/workflows/verify-vision.yml']
+permissions:
+  contents: read
+jobs:
+  vision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Install image test dependency
+        run: python3 -m pip install --quiet --break-system-packages Pillow
+      - name: Test unauthenticated rejection and one REAL photo inference
+        env:
+          CF_AI_SHARED_SECRET: ${{ secrets.CF_AI_SHARED_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import io,base64,json,os,urllib.request,urllib.error
+          from PIL import Image, ImageDraw
+          url='https://vestaland-ai.hsdf7rb.workers.dev/scan'
+          im=Image.new('RGB',(240,240),'#fafafa')
+          d=ImageDraw.Draw(im)
+          d.polygon([(85,45),(58,62),(20,93),(48,123),(73,108),(73,211),(172,211),(172,108),(197,123),(227,94),(190,63),(160,45)],fill='#f28fac')
+          b=io.BytesIO();im.save(b,'JPEG',quality=70)
+          body=json.dumps({"group":"closet","image":base64.b64encode(b.getvalue()).decode()}).encode()
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36'
+          opts={'Content-Type':'application/json','User-Agent':ua}
+          unauth=urllib.request.Request(url,data=body,headers=opts,method='POST')
+          try:urllib.request.urlopen(unauth,timeout=18)
+          except urllib.error.HTTPError as e:
+              print('Without secret HTTP:',e.code)
+              assert e.code==401
+          else:raise SystemExit('Security failure: unauthenticated photo inference allowed')
+          token=os.getenv('CF_AI_SHARED_SECRET','')
+          assert len(token)>=32
+          req=urllib.request.Request(url,data=body,headers={**opts,'Authorization':'Bearer '+token},method='POST')
+          try:
+              with urllib.request.urlopen(req,timeout=80) as r:
+                  response=json.loads(r.read(7000)); status=r.status
+          except urllib.error.HTTPError as e:
+              raw=e.read(2000).decode(errors='replace')
+              print('Photo model HTTP:',e.code,'error preview:',raw[:250])
+              raise
+          print('Vision HTTP:',status,'success:',response.get('ok'))
+          print('Detected fields:',list((response.get('suggestion') or {}).keys()))
+          assert status==200 and response.get('ok') is True
+          suggestion=response['suggestion']
+          assert suggestion.get('category') in ('top','bottom','dress','outer','shoes','bag','jewel','other')
+          assert suggestion.get('color') in ('pink','white','black','cream','blue','green','red','brown','purple','other')
+          print('Photo recognition running; no personal images logged.')
+          PY
