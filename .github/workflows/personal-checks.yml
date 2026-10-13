@@ -20,6 +20,7 @@ jobs:
           node --check commerce.js
           node --check cloudflare/src/index.js
           node --test tests/profile.test.cjs
+          node --test tests/visual_assets.test.cjs
           python3 -m unittest discover -s tests -p '*_test.py' -v
           python3 -m py_compile backend/market_server.py
           bash -n deploy/rollout.sh
