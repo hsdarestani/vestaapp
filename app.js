@@ -178,5 +178,6 @@ window.VestalandInventory={
   lock:lockInventory
 };
 async function boot(){try{db=await openDb();await loadItems();route('home')}catch(err){$('#appContent').innerHTML='<div class="empty"><span class="icon">🔒</span><h3>حافظه دستگاه در دسترس نیست</h3><p>برای نگهداری امن وسایلت، اجازه ذخیره‌سازی مرورگر یا اپ رو فعال کن و دوباره بازش کن.</p></div>'}if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}
-boot();
+const bootPromise=boot();
+window.VestalandInventory.ready=bootPromise;
 })();
