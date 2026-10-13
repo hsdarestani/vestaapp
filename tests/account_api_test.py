@@ -22,7 +22,7 @@ class VestalandAccountTests(unittest.TestCase):
         api.CF_AI_SHARED_SECRET="x"*40
         api.AI_GLOBAL_LIMIT=240
         api.AI_DAILY_PAID=2
-        self.environment=patch.dict(os.environ,{"VESTALAND_OTP_PEPPER":"test-fake-pepper-longer-than-thirty-two-characters"})
+        self.environment=patch.dict(os.environ,{"VESTALAND_OTP_PEPPER":"test-fake-pepper-longer-than-thirty-two-characters","OTP_ENABLED":"1","SUBSCRIPTIONS_ENABLED":"1","AI_ENABLED":"1","BAZAAR_ENABLED":"1"})
         self.environment.start()
     def tearDown(self):
         self.environment.stop();self.tmp.cleanup()
