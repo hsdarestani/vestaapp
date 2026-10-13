@@ -60,3 +60,5 @@ body.auth-required .commerce-panel{box-shadow:0 15px 60px #ad77ab44;border:2px s
 .ai-scan-button{display:block;width:100%;margin:10px 0 5px;border-radius:16px;min-height:42px}
 .ai-scan-button:disabled{opacity:.62}
 .photo-upload>small{display:block;color:#97728a;line-height:1.9;margin-top:8px}
+
+body.auth-required #editorDialog{display:none!important}
