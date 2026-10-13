@@ -1,0 +1,1 @@
+One-time hotfix for Vestaland SVG illustration delivery: chmod 755 only /srv/vestaapp/current/public/assets and assets/illustrations; keep all website services untouched.
