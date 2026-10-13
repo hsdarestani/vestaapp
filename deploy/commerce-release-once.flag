@@ -1,0 +1,1 @@
+Approved phased Vestaapp-only commerce UI and account API rollout, sensitive features disabled pending SMS/payment tests. No WordPress/Nginx ingress/MariaDB changes.
