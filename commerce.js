@@ -39,11 +39,11 @@ function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*10
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
 function gateRequired(){
- if(S.config)return authReady();
+ if(S.config)return isEnabled("login_required");
  return localStorage.getItem('vestaland-requires-login-v1')==='1';
 }
 function updateGate(){
- if(authReady())localStorage.setItem('vestaland-requires-login-v1','1');
+ if(isEnabled("login_required"))localStorage.setItem('vestaland-requires-login-v1','1');
  document.body.classList.remove('auth-pending');
  document.body.classList.toggle('auth-required',gateRequired()&&!allowed());
 }
@@ -306,7 +306,7 @@ async function loadOrders(){
 }
 async function logout(){
  try{await api('logout',{body:{logout:true}})}catch{}
- S.user=null;S.token='';localStorage.removeItem(sessionKey);if(window.VestalandInventory)window.VestalandInventory.lock();updateGate();S.modal=null;notify('از حساب خارج شدی');open('login');
+ S.user=null;S.token='';localStorage.removeItem(sessionKey);if(window.VestalandInventory)window.VestalandInventory.lock();updateGate();S.modal=null;notify('از حساب خارج شدی');if(!gateRequired()){location.reload();return}open('login');
 }
 // Trial and paid access enforced by the server for all protected endpoints;
 // this capture-phase overlay also stops navigating protected UI before login.
