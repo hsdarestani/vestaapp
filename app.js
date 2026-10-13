@@ -129,6 +129,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button,a')
 $('#aboutBtn').addEventListener('click',()=>{route('me')});
 $('#itemForm').addEventListener('submit',submitForm);
 $('#itemPhoto').addEventListener('change',e=>photoChanged(e.target.files[0]));
+$('#itemCamera').addEventListener('change',e=>photoChanged(e.target.files[0]));
 document.addEventListener('submit',e=>{if(e.target.id==='profileForm')submitProfile(e)});
 let searchTimer;document.addEventListener('input',e=>{if(e.target.id==='productSearch'){state.query=e.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.products=[];refreshShop()},450)}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor()});
