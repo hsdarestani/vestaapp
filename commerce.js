@@ -36,7 +36,7 @@ async function api(path,opts={}){
  finally{clearTimeout(timeout)}
 }
 function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
-function membershipPaymentEnabled(){return isEnabled('subscriptions_enabled')||(isBazaarAndroid()&&isEnabled('bazaar_enabled'))}
+function membershipPaymentEnabled(){return isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled')}
 function signedInAccess(){return !!S.user&&(!membershipPaymentEnabled()||allowed())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
@@ -84,6 +84,7 @@ function loginView(){
 function plansView(){
  return '<p class="commerce-lead">'+safe(statusText())+'</p><p class="commerce-note">۷ روز اول رایگان برای هر شماره، فقط یک بار. هزینه اشتراک پس از انتخاب پلن دریافت می‌شود؛ تمدید خودکار فعال نیست.</p>'+
  pricing()+(S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
+ (S.token&&localStorage.getItem(paymentKey)&&!isBazaarAndroid()?'<button class="btn btn-outline btn-block" data-payment-refresh>بررسی آخرین پرداخت</button>':'')+
  (!S.token?'<button class="btn btn-outline btn-block" data-commerce-open="login">اول وارد شو</button>':'')+
  (isBazaarAndroid()?'<p class="commerce-note">پرداخت اشتراک نسخه کافه‌بازار فقط از طریق پرداخت امن خود بازار و تأیید سمت سرور انجام می‌شود.</p>':'')+
  (!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))?'<p class="commerce-warning">پرداخت اشتراک بعد از اتصال و تأیید درگاه فعال می‌شود.</p>':'');
@@ -177,9 +178,16 @@ async function bootstrap(){
   if(new URLSearchParams(location.search).has('payment')){
    const q=new URLSearchParams(location.search);history.replaceState(null,'',location.pathname);
    const pid=localStorage.getItem(paymentKey);
-   if(pid&&S.token){
-    try{const status=await api('subscription/status?id='+encodeURIComponent(pid));if(status.payment_status==='paid'){notify('اشتراکت با موفقیت فعال شد');localStorage.removeItem(paymentKey);await refreshUser()}}
-    catch{}
+   if(pid&&S.token&&!isBazaarAndroid()){
+    try{
+      const status=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
+      if(status.payment_status==='paid'){
+        notify('پرداخت تأیید شد و اشتراکت فعال شد.');
+        localStorage.removeItem(paymentKey);await refreshUser();
+      }else if(status.payment_status==='mismatch'){
+        S.error='مبلغ پرداخت با سفارش تطبیق نداشت. با پشتیبانی تماس بگیر.';S.modal='plans';
+      }else{S.error='پرداخت هنوز تأیید نشده؛ اگر مبلغ کسر شده، آخرین پرداخت رو بررسی کن.';S.modal='plans'}
+    }catch(e){S.error='نتیجه پرداخت موقتاً در دسترس نیست. دوباره بررسی کن.';S.modal='plans'}
    }
   }
   if(S.user&&window.VestalandInventory){
@@ -213,6 +221,21 @@ async function loginSubmit(form){
    if(!signedInAccess())S.modal='plans';else close();
   }
  }catch(e){S.error=e.message}finally{S.loading=false;renderModal();decorate()}
+}
+async function refreshPayment(){
+ const pid=localStorage.getItem(paymentKey);
+ if(!pid||!S.token)return;
+ S.loading=true;S.error='';S.modal='plans';renderModal();
+ try{
+  const status=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
+  if(status.payment_status==='paid'){
+   localStorage.removeItem(paymentKey);
+   await refreshUser();notify('اشتراکت فعال شد.');
+   if(signedInAccess())close();
+  }else if(status.payment_status==='mismatch'){S.error='مبلغ پرداخت با سفارش مطابقت نداره؛ با پشتیبانی تماس بگیر.'}
+  else{S.error='هنوز پرداخت تأیید نشده؛ کمی بعد دوباره بررسی کن.'}
+ }catch(e){S.error=e.message||'تأیید پرداخت موقتاً در دسترس نیست.'}
+ finally{S.loading=false;if(S.modal)renderModal()}
 }
 async function startPayment(plan){
  S.loading=true;S.error='';renderModal();
@@ -353,6 +376,7 @@ document.addEventListener('click',event=>{
  if(b.hasAttribute('data-commerce-back')){S.otp=false;renderModal();return}
  if(b.dataset.commerceOpen){event.preventDefault();if(b.dataset.commerceOpen==='orders')loadOrders();else open(b.dataset.commerceOpen);return}
  if(b.dataset.payplan){event.preventDefault();startPayment(b.dataset.payplan);return}
+ if(b.hasAttribute('data-payment-refresh')){event.preventDefault();refreshPayment();return}
  if(b.dataset.cartstore){S.store=b.dataset.cartstore;S.checkoutRequestId=null;renderModal();return}
  if(b.dataset.qty){
   const row=S.cart[S.store].find(x=>x.id===Number(b.dataset.productid));
