@@ -2,9 +2,6 @@ name: Verify Cloudflare photo recognition
 # Recheck output after disabling Gemma 4 reasoning.
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/login-gate-photo-ai-entry]
-    paths: ['.github/workflows/verify-vision.yml']
 permissions:
   contents: read
 jobs:
