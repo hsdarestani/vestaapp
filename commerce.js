@@ -38,12 +38,17 @@ async function api(path,opts={}){
 function allowed(){return !!(S.user&&S.user.active&&Number(S.user.expires_at)*1000>Date.now())}
 function authReady(){return Boolean(S.config?.features?.otp_enabled)}
 function isEnabled(name){return Boolean(S.config?.features?.[name])}
+function updateGate(){
+ document.body.classList.remove('auth-pending');
+ document.body.classList.toggle('auth-required',!S.config||(authReady()&&!allowed()));
+}
+
 const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean(window.BazaarBridge);
 
 function open(kind){
  S.modal=kind;S.error='';renderModal();
 }
-function close(){S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
+function close(){if(authReady()&&!allowed()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
 function modalBase(title,content){
  let dlg=$('#commerceLayer');
  if(!dlg){dlg=document.createElement('section');dlg.id='commerceLayer';dlg.className='commerce-overlay';dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');document.body.append(dlg)}
@@ -170,16 +175,21 @@ async function bootstrap(){
     catch{}
    }
   }
+  if(S.user&&window.VestalandInventory){
+   await window.VestalandInventory.ready;
+   await window.VestalandInventory.bindUser(S.user.id);
+  }
  }catch(e){S.error=e.message}
+ updateGate();
  const root=$('#appContent');
  if(root){
   const observer=new MutationObserver(()=>decorate());
   observer.observe(root,{childList:true,subtree:false});
  }
  decorate();
- if(authReady()&&!S.user)open('login');
+ if(!S.config||authReady()&&!allowed())open(S.user?'plans':'login');
 }
-async function refreshUser(){if(!S.token)return;const result=await api('me');S.user=result.user;decorate()}
+async function refreshUser(){if(!S.token)return;const result=await api('me');S.user=result.user;updateGate();decorate()}
 async function loginSubmit(form){
  const fd=new FormData(form);S.phone=String(fd.get('phone')||'').trim();
  S.loading=true;S.error='';renderModal();
@@ -187,7 +197,12 @@ async function loginSubmit(form){
   if(!S.otp){await api('otp/request',{body:{phone:S.phone}});S.otp=true;notify('کد ورود ارسال شد 💌')}
   else{
    const result=await api('otp/verify',{body:{phone:S.phone,code:String(fd.get('code')||'')}});S.token=result.token;S.user=result.user;
-   localStorage.setItem(sessionKey,S.token);S.otp=false;notify('خوش اومدی به وستالند 💕');
+   localStorage.setItem(sessionKey,S.token);S.otp=false;
+   if(window.VestalandInventory){
+      await window.VestalandInventory.ready;
+      await window.VestalandInventory.bindUser(S.user.id);
+   }
+   updateGate();notify('خوش اومدی به وستالند 💕');
    if(!S.user.active)S.modal='plans';else close();
   }
  }catch(e){S.error=e.message}finally{S.loading=false;renderModal();decorate()}
@@ -240,6 +255,43 @@ async function askAi(form){
  }catch(e){S.error=e.message}
  finally{S.loading=false;renderModal()}
 }
+function tinyJpeg(blob){
+ return createImageBitmap(blob).then(bitmap=>{
+   const canvas=document.createElement('canvas');
+   const scale=Math.min(1,512/Math.max(bitmap.width,bitmap.height));
+   canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+   canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+   canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+   bitmap.close();
+   return new Promise((resolve,reject)=>{
+     canvas.toBlob(f=>{
+       if(!f)return reject(Error('امکان آماده کردن عکس وجود نداره.'));
+       if(f.size>120000)return reject(Error('عکس بیش از حد پیچیده است؛ لطفاً نزدیک‌تر عکس بگیر.'));
+       const reader=new FileReader();
+       reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+       reader.onerror=()=>reject(Error('خواندن عکس انجام نشد.'));
+       reader.readAsDataURL(f);
+     },'image/jpeg',.58);
+   });
+ });
+}
+async function scanNewItem(){
+ const inventory=window.VestalandInventory;
+ const file=inventory?.photo();
+ const button=$('#aiScanButton');
+ if(!file){notify('اول از وسیله‌ات عکس بگیر.');return}
+ if(!allowed()){open(S.user?'plans':'login');return}
+ if(!isEnabled('image_scan_enabled')){notify('تشخیص هوشمند عکس هنوز در مرحله تست است؛ فعلاً فیلدها رو خودت وارد کن.');return}
+ if(!button)return;
+ const old=button.textContent;button.disabled=true;button.textContent='در حال بررسی عکس... ✨';
+ try{
+   const image=await tinyJpeg(file);
+   const result=await api('ai/scan',{body:{group:inventory.group(),image}});
+   inventory.suggest(result.suggestion);
+   if(result.suggestion.confidence==='low')notify('اطمینان تشخیص پایینه؛ همه فیلدها رو بررسی کن.');
+ }catch(e){notify(e.message||'تشخیص عکس موقتاً در دسترس نیست.')}
+ finally{button.disabled=false;button.textContent=old}
+}
 async function loadOrders(){
  S.error='';S.orderStatus=[];
  if(!S.user){open('login');return}
@@ -249,12 +301,12 @@ async function loadOrders(){
 }
 async function logout(){
  try{await api('logout',{body:{logout:true}})}catch{}
- S.user=null;S.token='';localStorage.removeItem(sessionKey);close();notify('از حساب خارج شدی');open('login');
+ S.user=null;S.token='';localStorage.removeItem(sessionKey);if(window.VestalandInventory)window.VestalandInventory.lock();updateGate();S.modal=null;notify('از حساب خارج شدی');open('login');
 }
 // Trial and paid access enforced by the server for all protected endpoints;
 // this capture-phase overlay also stops navigating protected UI before login.
 document.addEventListener('click',event=>{
- if(!authReady()||allowed()||event.target.closest('#commerceLayer'))return;
+ if((!authReady()&&S.config)||allowed()||event.target.closest('#commerceLayer'))return;
  const target=event.target.closest('button,a');if(!target)return;
  if(target.hasAttribute('data-commerce-open')||target.hasAttribute('data-commerce-close'))return;
  const path=target.dataset.route;
@@ -272,7 +324,7 @@ async function confirmBazaarPurchase(plan,purchaseToken){
  try{
    const receipt=await api('bazaar/verify',{body:{plan,purchase_token:String(purchaseToken||'')}});
    if(!receipt.user?.active)throw new Error('رسید تأیید نشد.');
-   S.user=receipt.user;S.loading=false;notify('اشتراک بازار تأیید و فعال شد 🎀');close();decorate();
+   S.user=receipt.user;S.loading=false;updateGate();notify('اشتراک بازار تأیید و فعال شد 🎀');close();decorate();
  }catch(e){S.error='خرید ثبت شد اما تأیید اشتراک انجام نشده: '+e.message;S.loading=false;renderModal()}
 }
 window.VestalandCommerce={
@@ -300,6 +352,7 @@ document.addEventListener('click',event=>{
   if(row){row.quantity=Math.max(0,Math.min(10,row.quantity+Number(b.dataset.qty)));S.cart[S.store]=S.cart[S.store].filter(x=>x.quantity>0);S.checkoutRequestId=null;persistCart();renderModal()}
   return;
  }
+ if(b.id==='aiScanButton'){event.preventDefault();scanNewItem();return}
  if(b.hasAttribute('data-commerce-quote')){quote();return}
  if(b.hasAttribute('data-logout')){logout();return}
 });
