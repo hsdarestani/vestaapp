@@ -1,0 +1,40 @@
+name: Audit live Vestaland image delivery
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/static-images-serve]
+    paths: ['.github/workflows/audit-image-delivery.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public asset HTTP statuses and media types
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          base="https://app.vesta-cosmetics.ir"
+          paths=["/assets/illustrations/onboarding.svg","/assets/illustrations/selfcare.svg",
+                 "/assets/illustrations/market.svg","/assets/illustrations/market-wow.svg",
+                 "/assets/illustrations/gate-wow.svg","/icon.svg","/api/market/products?store=vesta&per_page=1"]
+          headers={"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36"}
+          for path in paths:
+            req=urllib.request.Request(base+path,headers=headers)
+            try:
+              with urllib.request.urlopen(req,timeout=18) as r:
+                data=r.read(15000);code=r.status;ct=r.headers.get("Content-Type","")
+            except urllib.error.HTTPError as e:
+              data=e.read(512);code=e.code;ct=e.headers.get("Content-Type","")
+            except Exception as e:
+              print(path,"NETWORK_ERROR",type(e).__name__);continue
+            print(path, "HTTP",code,"type",ct,"svg",data.lstrip().startswith(b"<svg") or b"<svg" in data[:500])
+            if path.startswith("/api/market/") and code==200:
+              try:
+                j=json.loads(data)
+                products=j.get("items",[]) if isinstance(j,dict) else []
+                print("products",len(products),"has thumbnail",bool(products and products[0].get("image")))
+              except Exception as e:print("market response parse",type(e).__name__)
+          PY
