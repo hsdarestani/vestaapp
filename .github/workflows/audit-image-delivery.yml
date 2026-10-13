@@ -19,7 +19,7 @@ jobs:
           base="https://app.vesta-cosmetics.ir"
           paths=["/assets/illustrations/onboarding.svg","/assets/illustrations/selfcare.svg",
                  "/assets/illustrations/market.svg","/assets/illustrations/market-wow.svg",
-                 "/assets/illustrations/gate-wow.svg","/icon.svg","/api/market/products?store=vesta&per_page=1"]
+                 "/assets/illustrations/gate-wow.svg","/assets/illustrations/selfcare.svg?bust=20261013v4","/icon.svg","/api/market/products?store=vesta&per_page=1"]
           headers={"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36"}
           for path in paths:
             req=urllib.request.Request(base+path,headers=headers)
@@ -31,6 +31,7 @@ jobs:
             except Exception as e:
               print(path,"NETWORK_ERROR",type(e).__name__);continue
             print(path, "HTTP",code,"type",ct,"svg",data.lstrip().startswith(b"<svg") or b"<svg" in data[:500])
+            print("body-prefix",repr(data[:92]),"server headers cf-cache-state",locals().get("r",None).headers.get("cf-cache-status","?") if code==200 else "not-200")
             if path.startswith("/api/market/") and code==200:
               try:
                 j=json.loads(data)
