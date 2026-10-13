@@ -1,0 +1,1 @@
+Enable SMS.ir OTP ONLY for SMS_TEST_PHONE. Set OTP_ENABLED=1 and LOGIN_GATE_ENABLED=0. Keep AI/checkout/subscription/payment untested features disabled; protect both WooCommerce stores.
