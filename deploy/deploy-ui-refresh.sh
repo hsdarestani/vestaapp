@@ -44,6 +44,11 @@ rollback(){
 }
 for file in "${files[@]}"; do
   mkdir -p "$PUBLIC/$(dirname "$file")"
+  if [[ "$file" == assets/illustrations/* ]]; then
+    # Nginx runs as an unprivileged user. The default umask 027 otherwise
+    # creates directories as 0750, which causes SPA index.html fallbacks.
+    chmod 755 "$PUBLIC/assets" "$PUBLIC/assets/illustrations"
+  fi
   tmp="$PUBLIC/.$(basename "$file").new"
   cp "$STAGE/$file" "$tmp"
   chmod 644 "$tmp"
