@@ -18,7 +18,7 @@ BACKUP="$BASE/backups/ui-visual-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -p "$BACKUP"
 trap 'rm -rf "$STAGE"' EXIT
 tar -xzf "$ARCHIVE" -C "$STAGE"
-files=(index.html app.js styles.css commerce.js commerce.css sw.js assets/illustrations/onboarding.svg assets/illustrations/selfcare.svg assets/illustrations/market.svg assets/illustrations/market-wow.svg assets/illustrations/gate-wow.svg)
+files=(index.html app.js styles.css commerce.js commerce.css sw.js assets/photos/hero-fashion.webp assets/photos/wardrobe.webp assets/photos/beauty.webp assets/photos/outfit.webp assets/photos/shop-mixed.webp assets/photos/shop-vesta.webp assets/photos/shop-cutella.webp assets/photos/beauty-care.webp assets/photos/closet-blank.webp assets/photos/SOURCES.json)
 for file in "${files[@]}"; do
   test -s "$STAGE/$file" || { echo "Missing staged static file: $file"; exit 1; }
   if test -f "$PUBLIC/$file"; then
@@ -26,8 +26,8 @@ for file in "${files[@]}"; do
     cp -p "$PUBLIC/$file" "$BACKUP/$file"
   fi
 done
-grep -q 'v=20261013-visual2' "$STAGE/index.html"
-grep -q 'vestaland-soft-visual-20261013-v2' "$STAGE/sw.js"
+grep -q 'v=20261013-realphotos1' "$STAGE/index.html"
+grep -q 'vestaland-real-photos-20261013-v1' "$STAGE/sw.js"
 grep -q 'یه عکس بگیر تا مشخصات' "$STAGE/index.html"
 if grep -q 'به Cloudflare ارسال' "$STAGE/index.html"; then
   echo 'Old technical text is still present'; exit 1
@@ -44,10 +44,9 @@ rollback(){
 }
 for file in "${files[@]}"; do
   mkdir -p "$PUBLIC/$(dirname "$file")"
-  if [[ "$file" == assets/illustrations/* ]]; then
-    # Nginx runs as an unprivileged user. The default umask 027 otherwise
-    # creates directories as 0750, which causes SPA index.html fallbacks.
-    chmod 755 "$PUBLIC/assets" "$PUBLIC/assets/illustrations"
+  if [[ "$file" == assets/photos/* ]]; then
+    # Non-root Nginx must be able to traverse all asset directories.
+    chmod 755 "$PUBLIC/assets" "$PUBLIC/assets/photos"
   fi
   tmp="$PUBLIC/.$(basename "$file").new"
   cp "$STAGE/$file" "$tmp"
@@ -57,12 +56,14 @@ done
 for file in index.html app.js styles.css commerce.js commerce.css sw.js; do
   docker exec vc-vestaapp-web wget -qO- "http://127.0.0.1:8080/$file" >/tmp/vestaland-ui-check || { rollback; exit 1; }
 done
-for file in onboarding.svg selfcare.svg market.svg market-wow.svg gate-wow.svg; do
-  if ! docker exec vc-vestaapp-web wget -qO- "http://127.0.0.1:8080/assets/illustrations/$file" | grep -q '<svg'; then
-    echo "Illustration unavailable: $file"; rollback; exit 1
+for file in hero-fashion.webp wardrobe.webp beauty.webp outfit.webp shop-mixed.webp shop-vesta.webp shop-cutella.webp beauty-care.webp closet-blank.webp; do
+  # Inspect actual image header, not just HTTP 200 (SPA fallback can return HTML).
+  code="$(curl --noproxy '*' -k -sS --max-time 15 -o /tmp/vesta-photo-check -w '%{http_code} %{content_type}' --resolve app.vesta-cosmetics.ir:443:127.0.0.1 "https://app.vesta-cosmetics.ir/assets/photos/$file")"
+  if [[ "$code" != 200\ image/webp* || "$(head -c 4 /tmp/vesta-photo-check)" != RIFF ]]; then
+    echo "Invalid or inaccessible real photo: $file ($code)"; rollback; exit 1
   fi
 done
-if ! docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/ | grep -q '20261013-visual2'; then
+if ! docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/ | grep -q '20261013-realphotos1'; then
   rollback; exit 1
 fi
 if ! docker exec vc-vestaapp-web wget -qO- http://127.0.0.1:8080/api/account/health | grep -q '"ok":true'; then
@@ -73,4 +74,4 @@ for host in vesta-cosmetics.ir cutellashop.ir; do
   echo "$host HTTP=$code"
   [[ "$code" == 200 || "$code" == 301 || "$code" == 302 ]] || { rollback; exit 1; }
 done
-echo 'SUCCESS: Vestaland copy, navigation and image assets updated with zero store container restarts.'
+echo 'SUCCESS: genuine storefront photography published; all 9 WebP assets verified and both stores unchanged.'
