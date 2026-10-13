@@ -1,0 +1,43 @@
+name: Diagnose image path at app origin (read only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/static-images-serve]
+    paths: ['.github/workflows/diagnose-origin-images.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Install SSH transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Compare app Nginx, ingress Nginx, and public URLs
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${HOST##*@}" = "193.177.242.64"
+          test -n "${PASS:-}" && test -n "${SSH_KNOWN_HOSTS:-}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"; [[ "$target" == *"@"* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=16 "$target" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          path=/srv/vestaapp/current/public/assets/illustrations/selfcare.svg
+          echo "ORIGIN FILE STATE:"
+          stat -c '%a %U:%G %n' /srv/vestaapp/current/public /srv/vestaapp/current/public/assets /srv/vestaapp/current/public/assets/illustrations "$path" 2>&1 || true
+          echo "INTERNAL APP:"
+          docker exec vc-vestaapp-web sh -c "wget -S -O /tmp/img-check http://127.0.0.1:8080/assets/illustrations/selfcare.svg 2>&1 | grep -E '(HTTP/|Content-Type:)' | head -n 5; head -c 36 /tmp/img-check; echo"
+          echo "INTERNAL INGRESS:"
+          curl -skS --resolve 'app.vesta-cosmetics.ir:443:127.0.0.1' 'https://app.vesta-cosmetics.ir/assets/illustrations/selfcare.svg' -D /tmp/vestaland-img-headers -o /tmp/vestaland-img-body
+          grep -iE '^HTTP/|^content-type:|^cache-control:' /tmp/vestaland-img-headers | head -n 6 || true
+          head -c 36 /tmp/vestaland-img-body; echo
+          echo "APP INGRESS ROUTE:"
+          docker exec vc-nginx sh -c "nginx -T 2>/dev/null | grep -nE 'app.vesta-cosmetics.ir|location |proxy_pass |/assets/' | tail -n 90" | tail -n 90
+          REMOTE
