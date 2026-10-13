@@ -1,9 +1,6 @@
 name: Deploy real Vesta and Cutella photos to Vestaland
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['deploy/real-photos-release-once.flag']
 permissions:
   contents: read
 concurrency:
