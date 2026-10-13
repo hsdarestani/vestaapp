@@ -163,6 +163,7 @@ def check_rate(c,key,limit,window):
         c.execute("UPDATE otp_rate SET count=count+1 WHERE key=?",(key,))
 
 def send_otp(phone,ip):
+    if os.getenv('OTP_ENABLED','0')!='1':raise Error('ورود پیامکی هنوز فعال نشده است.',503)
     ensure_configs("SMS_KEY","SMS_TEMPLATE")
     code=str(secrets.randbelow(900000)+100000)
     hd=otp_digest(phone,code)
@@ -184,6 +185,7 @@ def send_otp(phone,ip):
     return {"ok":True,"message":"اگر شماره قابل دریافت باشد، کد ورود ارسال شده است.","expires_in":300}
 
 def verify_otp(phone,code,ip):
+    if os.getenv('OTP_ENABLED','0')!='1':raise Error('ورود پیامکی هنوز فعال نشده است.',503)
     if not re.fullmatch(r"\d{6}",str(code or "")):raise Error("کد باید شش رقم باشد.")
     with LOCK,conn() as c:
         c.execute("BEGIN IMMEDIATE")
@@ -232,13 +234,14 @@ def logout(headers):
 
 def plans():
     return {"ok":True,"trial_days":7,"plans":[{"id":k,"price_toman":v[0],"duration_months":v[1]} for k,v in PLANS.items()],
-            "features":{"otp_enabled":bool(SMS_KEY and SMS_TEMPLATE and len(os.getenv("VESTALAND_OTP_PEPPER",""))>=32),
-                        "subscriptions_enabled":bool(ZIBAL_MERCHANT),
-                        "ai_enabled":bool(CF_WORKER_URL and CF_AI_SHARED_SECRET),
+            "features":{"otp_enabled":os.getenv("OTP_ENABLED","0")=="1" and bool(SMS_KEY and SMS_TEMPLATE and len(os.getenv("VESTALAND_OTP_PEPPER",""))>=32),
+                        "subscriptions_enabled":os.getenv("SUBSCRIPTIONS_ENABLED","0")=="1" and bool(ZIBAL_MERCHANT),
+                        "ai_enabled":os.getenv("AI_ENABLED","0")=="1" and bool(CF_WORKER_URL and CF_AI_SHARED_SECRET),
                         "store_checkout_enabled":os.getenv("APP_CHECKOUT_ENABLED","0")=="1",
-                        "bazaar_enabled":bazaar_verify.ready()}}
+                        "bazaar_enabled":os.getenv("BAZAAR_ENABLED","0")=="1" and bazaar_verify.ready()}}
 
 def subscribe(user,plan):
+    if os.getenv("SUBSCRIPTIONS_ENABLED","0")!="1":raise Error("پرداخت اشتراک هنوز فعال نشده است.",503)
     ensure_configs("ZIBAL_MERCHANT")
     if plan not in PLANS:raise Error("پلن نامعتبر است.")
     price,_=PLANS[plan]
@@ -280,6 +283,7 @@ def verify_subscription(sub_id,returned_track=None):
         return True
 
 def verify_bazaar_receipt(user,plan,purchase_token):
+    if os.getenv("BAZAAR_ENABLED","0")!="1":raise Error("پرداخت بازار هنوز فعال نشده است.",503)
     if not bazaar_verify.ready():raise Error("تأیید اشتراک کافه‌بازار هنوز فعال نشده است.",503)
     try:receipt=bazaar_verify.validate(plan,purchase_token)
     except bazaar_verify.BazaarError as e:
@@ -308,6 +312,7 @@ def subscription_status(user,pid):
     return {"ok":True,"payment_status":s["status"],"plan":s["plan"]}
 
 def ai_recommend(user,items,question):
+    if os.getenv("AI_ENABLED","0")!="1":raise Error("پیشنهاد AI هنوز برای عموم فعال نشده است.",503)
     ensure_configs("CF_WORKER_URL","CF_AI_SHARED_SECRET")
     if not CF_WORKER_URL.startswith("https://"):raise Error("اتصال هوش مصنوعی آماده نیست.",503)
     if not isinstance(items,list):raise Error("لیست وسایل معتبر نیست.")
