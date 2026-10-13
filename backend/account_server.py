@@ -172,6 +172,8 @@ def check_rate(c,key,limit,window):
 def send_otp(phone,ip):
     if os.getenv('OTP_ENABLED','0')!='1':raise Error('ورود پیامکی هنوز فعال نشده است.',503)
     ensure_configs("SMS_KEY","SMS_TEMPLATE")
+    if os.getenv('OTP_TEST_PHONE') and phone!=normalize_phone(os.getenv('OTP_TEST_PHONE')):
+        raise Error('فعلاً فقط ورود آزمایشی فعال است.',403)
     code=str(secrets.randbelow(900000)+100000)
     hd=otp_digest(phone,code)
     with LOCK,conn() as c:
@@ -193,6 +195,8 @@ def send_otp(phone,ip):
 
 def verify_otp(phone,code,ip):
     if os.getenv('OTP_ENABLED','0')!='1':raise Error('ورود پیامکی هنوز فعال نشده است.',503)
+    if os.getenv("OTP_TEST_PHONE") and phone!=normalize_phone(os.getenv("OTP_TEST_PHONE")):
+        raise Error("فعلاً فقط ورود آزمایشی فعال است.",403)
     if not re.fullmatch(r"\d{6}",str(code or "")):raise Error("کد باید شش رقم باشد.")
     with LOCK,conn() as c:
         c.execute("BEGIN IMMEDIATE")
@@ -242,6 +246,7 @@ def logout(headers):
 def plans():
     return {"ok":True,"trial_days":7,"plans":[{"id":k,"price_toman":v[0],"duration_months":v[1]} for k,v in PLANS.items()],
             "features":{"otp_enabled":os.getenv("OTP_ENABLED","0")=="1" and bool(SMS_KEY and SMS_TEMPLATE and len(os.getenv("VESTALAND_OTP_PEPPER",""))>=32),
+                        "login_required":os.getenv("OTP_ENABLED","0")=="1" and os.getenv("LOGIN_GATE_ENABLED","0")=="1" and not bool(os.getenv("OTP_TEST_PHONE","")),
                         "subscriptions_enabled":os.getenv("SUBSCRIPTIONS_ENABLED","0")=="1" and bool(ZIBAL_MERCHANT),
                         "ai_enabled":os.getenv("AI_ENABLED","0")=="1" and bool(CF_WORKER_URL and CF_AI_SHARED_SECRET),
                         "image_scan_enabled":os.getenv("AI_ENABLED","0")=="1" and os.getenv("IMAGE_SCAN_ENABLED","0")=="1" and bool(CF_AI_SHARED_SECRET),
