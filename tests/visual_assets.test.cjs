@@ -16,12 +16,13 @@ test('photo form uses a short, friendly hint without infrastructure details',()=
   assert.match(html,/id="itemPhoto"/);
 });
 test('app uses real store photographs with reproducible source metadata',()=>{
-  const producer=read('scripts/prepare-real-photos.py');
-  assert.ok(photoLinks.length>=7,'real photo links expected throughout UI');
+  const producer=read('scripts/prepare-stock-photos.py');
+  assert.ok(photoLinks.length>=7,'stock decoration photo links expected throughout UI');
   for(const url of photoLinks){
     const photo=path.basename(url,'.webp');
-    assert.ok(producer.includes('"'+photo+'"'), 'unknown real photo: '+url);
+    assert.ok(producer.includes('"'+photo+'"'), 'unknown licensed stock photo: '+url);
   }
+  assert.ok(read('scripts/prepare-stock-photos.py').includes('pexels.com/license/'));
   for(const page of [app,commerce,html])
     assert.ok(!page.includes('/assets/illustrations/'), 'no cartoon illustration references remain');
 });
