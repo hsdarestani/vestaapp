@@ -84,13 +84,16 @@ jobs:
               raise SystemExit("Unexpected existing release state; refusing upload")
           draft=request("GET","last-uncommitted/")
           existing=draft.get("release") if isinstance(draft,dict) else None
-          if existing: raise SystemExit("Existing draft detected, will not overwrite")
-          created=request("POST","",b"")
-          print("Release draft created. Response keys:",list(created) if isinstance(created,dict) else [])
+          if existing and versions(draft): raise SystemExit("Draft already contains a package; will not replace it")
+          if existing:
+              print("Reusing previously created empty draft from the verified release attempt")
+          else:
+              created=request("POST","",b"")
+              print("Release draft created. Response keys:",list(created) if isinstance(created,dict) else [])
           boundary="----Vestaland"+uuid.uuid4().hex
           def field(name,body,filename=None,mime=None):
               prefix=('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"'+('; filename="'+filename+'"' if filename else '')+'\r\n'+('Content-Type: '+mime+'\r\n' if mime else '')+'\r\n').encode()
-              return prefix+b'\r\n'+body+b'\r\n'
+              return prefix+body+b'\r\n'
           upload=field("architecture",b"all")+field("apk",apk.read_bytes(),apk.name,"application/vnd.android.package-archive")+('--'+boundary+'--\r\n').encode()
           result=request("POST","upload/",upload,{"Content-Type":"multipart/form-data; boundary="+boundary},timeout=150)
           print("Signed APK upload accepted. Response fields:",list(result) if isinstance(result,dict) else [])
