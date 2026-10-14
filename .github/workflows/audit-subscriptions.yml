@@ -1,0 +1,57 @@
+name: Vestaland subscription reconciliation audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/audit-subscriptions.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SSH helper
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Verify settled payment in account SQLite without disclosing private data
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "${HOST##*@}" == "193.177.242.64" && -n "$PASS" && -n "$SSH_KNOWN_HOSTS" ]]
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"; [[ "$target" == *@* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$target" 'python3 -' <<'PY'
+          import sqlite3,time,os,datetime
+          db='/srv/vestaapp/data/accounts/accounts.db'
+          assert os.path.isfile(db),"Account DB missing"
+          c=sqlite3.connect('file:'+db+'?mode=ro',uri=True)
+          c.row_factory=sqlite3.Row
+          print("Production DB accessible read-only: yes")
+          now=int(time.time())
+          recent=c.execute("""SELECT s.id,s.user_id,s.plan,s.amount_rial,s.status,s.created_at,s.verified_at,u.paid_until,u.trial_until
+            FROM subscriptions s JOIN users u ON u.id=s.user_id
+            WHERE s.created_at>? ORDER BY s.created_at DESC LIMIT 12""",(now-3*86400,)).fetchall()
+          paid=[r for r in recent if r["status"]=="paid"]
+          print("Paid subscription transactions in last 72 hours:",len(paid))
+          print("Pending subscriptions in last 72 hours:",sum(r["status"]=="pending" for r in recent))
+          print("Recent paid monthly 199,000 toman:",sum(r["status"]=="paid" and r["plan"]=="monthly" and r["amount_rial"]==1990000 for r in recent))
+          print("All recent paid records have verified_at:",all(r["verified_at"] for r in paid))
+          print("All recent paid records with future paid_until:",all(r["paid_until"]>now for r in paid))
+          print("All recent paid subscription records unique:",len(set(r["id"] for r in paid))==len(paid))
+          if paid:
+            p=paid[0]
+            count=c.execute("SELECT count(*) FROM subscriptions WHERE user_id=? AND status='paid' AND verified_at BETWEEN ? AND ?",(p["user_id"],p["verified_at"]-60,p["verified_at"]+60)).fetchone()[0]
+            print("Most recent paid account, paid transactions within same two-minute window:",count)
+            print("Most recent paid transaction verified within last 72 hours:",p["verified_at"]>=now-3*86400)
+            print("Most recent paid plan monthly:",p["plan"]=="monthly")
+            print("Most recent paid amount exactly 1990000 rial:",p["amount_rial"]==1990000)
+            print("Most recent paid account access currently active:",p["paid_until"]>now)
+          print("No phone numbers, user IDs, tokens, payment IDs, or private names exposed.")
+          PY
