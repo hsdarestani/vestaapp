@@ -186,4 +186,5 @@ window.VestalandInventory={
 async function boot(){try{db=await openDb();await loadItems();route('home')}catch(err){$('#appContent').innerHTML='<div class="empty"><img class="empty-art" src="/assets/photos/closet-blank.webp?v=stock20261013" alt="" loading="lazy"><h3>حافظه دستگاه در دسترس نیست</h3><p>برای نگهداری امن وسایلت، اجازه ذخیره‌سازی مرورگر یا اپ رو فعال کن و دوباره بازش کن.</p></div>'}if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}
 const bootPromise=boot();
 window.VestalandInventory.ready=bootPromise;
+bootPromise.finally(()=>window.VestalandSplash?.ready('inventory'));
 })();

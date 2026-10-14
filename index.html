@@ -9,12 +9,36 @@
 <title>وستالند | دنیای خوشگل خودت</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script>if(new URLSearchParams(location.search).has('payment'))document.documentElement.classList.add('skip-entry-splash');</script>
+<link rel="stylesheet" href="/splash.css?v=20261014-magic1">
 <link rel="stylesheet" href="/styles.css?v=20261013-stock2">
 <link rel="stylesheet" href="/commerce.css?v=20261014-receipt1">
-<script src="/app.js?v=20261013-stock2" defer></script>
-<script src="/commerce.js?v=20261014-receipt1" defer></script>
+<script src="/splash.js?v=20261014-magic1" defer></script>
+<script src="/app.js?v=20261014-magic1" defer></script>
+<script src="/commerce.js?v=20261014-magic1" defer></script>
 </head>
 <body class="auth-pending">
+<div id="entrySplash" class="entry-splash" role="status" aria-label="وستالند در حال آماده شدن" aria-live="polite">
+  <div class="entry-stars" aria-hidden="true"><span>✦</span><span>✧</span><span>✿</span><span>✦</span><span>✧</span><span>✧</span><span>✦</span><span>✧</span></div>
+  <div class="entry-scene">
+    <p class="entry-eyebrow">⋆ LITTLE THINGS, BIG SPARKLE ⋆</p>
+    <div class="entry-stage" aria-hidden="true">
+      <div class="entry-aura"></div><div class="entry-orbit"></div><div class="entry-orbit second"></div>
+      <div class="entry-puff one"></div><div class="entry-puff two"></div>
+      <div class="entry-bow-wrap"><img src="/icon.svg" width="136" height="136" alt="" fetchpriority="high"></div>
+      <span class="entry-stardust s1">✦</span><span class="entry-stardust s2">✧</span><span class="entry-stardust s3">✧</span><span class="entry-stardust s4">✦</span>
+      <span class="entry-mini heart">💗</span><span class="entry-mini flower">🌸</span><span class="entry-mini butterfly">🦋</span>
+    </div>
+    <h1 class="entry-name">وستالند</h1>
+    <p class="entry-tagline">دنیای کوچولوی قشنگت داره بیدار می‌شه ♡</p>
+    <div class="entry-pill" aria-hidden="true"><span class="spark">✦</span> یه عالمه قشنگی در راهه <span class="spark">✦</span></div>
+    <div class="entry-progress-block">
+      <div class="entry-progress-track" role="progressbar" aria-label="در حال آماده‌سازی" aria-valuemin="0" aria-valuemax="100"><div class="entry-progress-fill"></div></div>
+      <p class="entry-progress-label" id="entrySplashStatus">داریم یه کم جادو به روزت اضافه می‌کنیم... ✨</p>
+    </div>
+    <button type="button" id="entryContinue" class="entry-continue" hidden>ورود به وستالند ♡</button>
+  </div>
+</div>
 <div class="sparkle-bg" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="shell">
   <header class="topbar">
