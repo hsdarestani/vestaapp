@@ -442,5 +442,5 @@ document.addEventListener('submit',event=>{
  if(event.target.id==='commerceAiForm'){event.preventDefault();askAi(event.target)}
 });
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&S.modal)close()});
-bootstrap();
+bootstrap().finally(()=>window.VestalandSplash?.ready('commerce'));
 })();
