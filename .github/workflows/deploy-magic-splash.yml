@@ -1,9 +1,6 @@
 name: Deploy Vestaland magical entry
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['deploy/magic-splash-release-once.flag']
 permissions:
   contents: read
 concurrency:
