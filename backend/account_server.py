@@ -323,6 +323,21 @@ def verify_bazaar_receipt(user,plan,purchase_token):
     fresh=db_one("SELECT * FROM users WHERE id=?",(user["id"],))
     return {"ok":True,"user":public_user(fresh),"bazaar_expires_at":receipt["expires_at"]}
 
+def last_verified_payment(user):
+    # A private receipt for the authenticated account only. No Zibal track token
+    # or bank credentials are ever exposed to the browser.
+    row=db_one("""SELECT id,plan,amount_rial,verified_at
+        FROM subscriptions WHERE user_id=? AND status='paid' AND verified_at IS NOT NULL
+        ORDER BY verified_at DESC LIMIT 1""",(user["id"],))
+    if not row:
+        return {"ok":True,"payment":None}
+    return {"ok":True,"payment":{
+        "id":row["id"],"status":"paid","plan":row["plan"],
+        "price_toman":row["amount_rial"]//10,
+        "verified_at":row["verified_at"],
+        "expires_at":max(user["paid_until"],user["bazaar_until"])
+    }}
+
 def subscription_status(user,pid,refresh=False):
     if not isinstance(pid,str) or not re.fullmatch(r"[A-Za-z0-9_-]{20,90}",pid):
         raise Error("شناسه پرداخت معتبر نیست.",400)
@@ -575,6 +590,8 @@ class API(BaseHTTPRequestHandler):
             self.end_headers();return
         if path=="/api/account/me":return self.json(200,{"ok":True,"user":public_user(authenticate(self.headers))})
         if path=="/api/account/orders":return self.json(200,orders(authenticate(self.headers,active=True)))
+        if path=="/api/account/subscription/latest":
+            return self.json(200,last_verified_payment(authenticate(self.headers)))
         if path=="/api/account/subscription/status":
             user=authenticate(self.headers)
             return self.json(200,subscription_status(user,(q.get("id") or [""])[0],
