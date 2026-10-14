@@ -14,8 +14,8 @@
 <link rel="stylesheet" href="/styles.css?v=20261013-stock2">
 <link rel="stylesheet" href="/commerce.css?v=20261014-receipt1">
 <script src="/splash.js?v=20261014-voice2" defer></script>
-<script src="/app.js?v=20261014-voice2" defer></script>
-<script src="/commerce.js?v=20261014-voice2" defer></script>
+<script src="/app.js?v=20261014-clean3" defer></script>
+<script src="/commerce.js?v=20261014-clean3" defer></script>
 </head>
 <body class="auth-pending">
 <div id="entrySplash" class="entry-splash" role="status" aria-label="وستالند در حال آماده شدن" aria-live="polite">
@@ -47,7 +47,7 @@
   </header>
   <main id="appContent" tabindex="-1" aria-live="polite"></main>
   <nav class="bottom-nav" aria-label="بخش‌های اپ">
-    <button type="button" data-route="home" class="active"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><b>خونه</b></button>
+    <button type="button" data-route="home" class="active"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><b>خانه</b></button>
     <button type="button" data-route="closet"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7V6a2.3 2.3 0 1 1 2.4 2.3L21 13a1.5 1.5 0 0 1-.9 2.7H3.9A1.5 1.5 0 0 1 3 13l9-5"/></svg></span><b>کمد من</b></button>
     <button type="button" data-route="beauty"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8V4c0-1 .7-2 1.5-2S12 3 12 4v4M8 8h6v4H8zM8 12h6v8a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg></span><b>میز آرایش</b></button>
     <button type="button" data-route="shop"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1 12H5L4 9zM9 10V7a3 3 0 0 1 6 0v3"/></svg></span><b>فروشگاه</b></button>
@@ -65,7 +65,7 @@
       <label>دسته‌بندی <select id="itemCategory" required></select></label>
       <div class="form-grid"><label>رنگ <select id="itemColor"><option value="pink">صورتی</option><option value="white">سفید</option><option value="black">مشکی</option><option value="cream">کرم</option><option value="blue">آبی</option><option value="green">سبز</option><option value="red">قرمز</option><option value="brown">قهوه‌ای</option><option value="purple">یاسی</option><option value="other">متفرقه</option></select></label><label>برند (اختیاری)<input id="itemBrand" maxlength="55" placeholder="برند" /></label></div>
       <div id="beautyFields" class="hidden"><div class="form-grid"><label>تاریخ باز کردن<input id="itemOpened" type="date" /></label><label>ماندگاری بعد از باز شدن<select id="itemPAO"><option value="0">نامشخص</option><option value="3">۳ ماه</option><option value="6">۶ ماه</option><option value="12">۱۲ ماه</option><option value="18">۱۸ ماه</option><option value="24">۲۴ ماه</option></select></label></div><label>روتین<select id="itemRoutine"><option value="none">بدون روتین</option><option value="am">صبح</option><option value="pm">شب</option><option value="both">صبح و شب</option></select></label></div>
-      <button class="btn btn-primary btn-block" type="submit">ذخیره توی دنیای من ♡</button>
+      <button class="btn btn-primary btn-block" type="submit">ذخیره وسیله</button>
     </form>
   </div>
 </div>

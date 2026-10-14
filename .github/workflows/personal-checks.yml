@@ -33,4 +33,4 @@ jobs:
           ! grep -q 'id="hangoutView"' index.html
           ! grep -q 'assets/community-v2.js' index.html
           grep -q 'app.vesta-cosmetics.ir' android/app/src/main/java/ir/vestaland/app/MainActivity.java
-          grep -q "versionCode 4" android/app/build.gradle
+          grep -q "versionCode 5" android/app/build.gradle
