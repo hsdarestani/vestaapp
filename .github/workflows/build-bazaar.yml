@@ -73,6 +73,23 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/vestaland-bazaar.jks"
           chmod 600 "$RUNNER_TEMP/vestaland-bazaar.jks"
 
+      - name: Verify recovered Bazaar signing identity
+        if: steps.signing.outputs.available == 'true'
+        env:
+          KEY_ALIAS: ${{ secrets.BAZAAR_KEY_ALIAS }}
+          STORE_PASS: ${{ secrets.BAZAAR_KEYSTORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="7220E3B8AB418045E84091269B495339AE6971A998C005CF6E84142EA73C8077"
+          actual="$(keytool -list -v -keystore "$RUNNER_TEMP/vestaland-bazaar.jks" -alias "$KEY_ALIAS" -storepass:env STORE_PASS 2>/dev/null | grep -m1 'SHA256:' | sed -E 's/.*SHA256: *//' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          echo "Recovered signing certificate SHA256: $actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::CafeBazaar keystore does not match previously signed Vestaland 1.0.1 AAB. Stop release."
+            exit 1
+          fi
+          echo "Confirmed: release signing certificate matches Vestaland 1.0.1 AAB."
+
       - name: Build signed APK and AAB
         if: steps.signing.outputs.available == 'true'
         env:
