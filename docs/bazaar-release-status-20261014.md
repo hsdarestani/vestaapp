@@ -19,3 +19,10 @@
 - `BAZAAR_RSA_PUBLIC_KEY` was absent in the latest checked Actions Secrets.
 - A server-side Bazaar receipt verifier requires `BAZAAR_CLIENT_ID`, `BAZAAR_CLIENT_SECRET`, and `BAZAAR_REFRESH_TOKEN`; these are not interchangeable with Pishkhan API token.
 - Keep Bazaar paid subscription UI disabled until native billing SKUs, server-side verification, subscription expiry and restoration are tested. `MainActivity.java` has a 6-month SKU but frontend/backend do not yet fully support that plan.
+
+## Update — 2026-10-15: release request submitted
+- Pishkhan media page shows 4 uploaded screenshots for `ir.vestaland.app` (content not visually verified).
+- Current listing title `وستالند | کمد لباس و میز آرایش` and descriptions saved.
+- Existing draft 1.3.0 (versionCode 5) submitted via Pishkhan dashboard: clicked `درخواست انتشار` then confirmed `درخواست انتشار برنامه`.
+- Dashboard reloaded and displayed version 1.3.0 status `در صف انتظار` (queued for review), with `لغو درخواست انتشار` action; this is **confirmed submitted, NOT publicly published**.
+- Existing public version 1.0.1 remains published. Dashboard: https://pishkhan.cafebazaar.ir/apps/ir.vestaland.app/releases/management .
