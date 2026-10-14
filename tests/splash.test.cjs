@@ -94,7 +94,7 @@ test('HTML and worker assets match and boot stages signal readiness',()=>{
   assert.match(html,/id="entrySplash"/);
   assert.match(html,/\/splash\.js\?v=20261014-voice2/);
   assert.match(html,/\/splash\.css\?v=20261014-voice2/);
-  assert.match(sw,/vestaland-voice-20261014-v2/);
+  assert.match(sw,/vestaland-clean-20261014-v3/);
   assert.match(sw,/\/splash\.css\?v=20261014-voice2/);
   assert.match(sw,/\/splash\.js\?v=20261014-voice2/);
   assert.match(inventory,/VestalandSplash\?\.ready\('inventory'\)/);
