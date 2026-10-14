@@ -93,12 +93,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p bazaar-output
-          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.2.0-debug-TEST-ONLY.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk bazaar-output/vestaland-1.3.0-debug-TEST-ONLY.apk
           if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.2.0-cafebazaar.apk
-            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.2.0-cafebazaar.aab
+            cp android/app/build/outputs/apk/release/app-release.apk bazaar-output/vestaland-1.3.0-cafebazaar.apk
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.3.0-cafebazaar.aab
           else
-            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.2.0-UNSIGNED-NOT-FOR-UPLOAD.aab
+            cp android/app/build/outputs/bundle/release/app-release.aab bazaar-output/vestaland-1.3.0-UNSIGNED-NOT-FOR-UPLOAD.aab
           fi
           sha256sum bazaar-output/*.apk bazaar-output/*.aab > bazaar-output/SHA256SUMS.txt
           echo 'APK debug = testing only. Unsigned AAB = NOT suitable for CafeBazaar publication.' > bazaar-output/README-FIRST.txt
@@ -115,7 +115,7 @@ jobs:
       - name: Upload CafeBazaar package
         uses: actions/upload-artifact@v4
         with:
-          name: vestaland-cafebazaar-1.1.0
+          name: vestaland-cafebazaar-1.3.0
           path: bazaar-output/
           retention-days: 30
 
