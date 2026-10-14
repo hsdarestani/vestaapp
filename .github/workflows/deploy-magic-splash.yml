@@ -1,6 +1,9 @@
 name: Deploy Vestaland magical entry
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/voice-release-once.flag']
 permissions:
   contents: read
 concurrency:
@@ -57,9 +60,9 @@ jobs:
           set -euo pipefail
           curl -fsS --retry 3 --retry-delay 2 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/magic-home
           grep -q 'id="entrySplash"' /tmp/magic-home
-          grep -q 'splash.js?v=20261014-magic1' /tmp/magic-home
-          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/splash.js?v=20261014-magic1' -o /tmp/magic-js
-          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/splash.css?v=20261014-magic1' -o /tmp/magic-css
+          grep -q 'splash.js?v=20261014-voice2' /tmp/magic-home
+          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/splash.js?v=20261014-voice2' -o /tmp/magic-js
+          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/splash.css?v=20261014-voice2' -o /tmp/magic-css
           grep -q 'MIN_MS=5600' /tmp/magic-js
           grep -q 'entry-logo-arrive' /tmp/magic-css
           curl -fsS --max-time 20 https://app.vesta-cosmetics.ir/api/account/health | grep -q '"ok":true'
