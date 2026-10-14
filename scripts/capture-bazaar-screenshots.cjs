@@ -52,7 +52,21 @@ let activeBrowser=null;
   await page.waitForTimeout(1900);
   if(await page.locator('#entrySplash').count())await page.screenshot({path:path.join(DEST,'01-splash.png')});
   await page.waitForTimeout(5200);
-  await page.evaluate((entries)=>new Promise((resolve,reject)=>{
+  await page.evaluate(async (entries)=>{
+    const samplePhotos={
+      'demo-top':'/assets/photos/hero-fashion.webp?v=stock20261013',
+      'demo-bottom':'/assets/photos/wardrobe.webp?v=stock20261013',
+      'demo-bag':'/assets/photos/outfit.webp?v=stock20261013',
+      'demo-shoes':'/assets/photos/shop-cutella.webp?v=stock20261013',
+      'demo-lip':'/assets/photos/beauty.webp?v=stock20261013',
+      'demo-care':'/assets/photos/beauty-care.webp?v=stock20261013'
+    };
+    const photos={};
+    for(const [id,url] of Object.entries(samplePhotos)){
+      const res=await fetch(url);
+      if(res.ok)photos[id]=await res.blob();
+    }
+    return new Promise((resolve,reject)=>{
     const req=indexedDB.open('vestaland-personal-user-v1-999',1);
     req.onupgradeneeded=()=>{
       if(!req.result.objectStoreNames.contains('items'))req.result.createObjectStore('items',{keyPath:'id'});
@@ -60,11 +74,12 @@ let activeBrowser=null;
     req.onerror=()=>reject(req.error);
     req.onsuccess=()=>{
       const db=req.result,tx=db.transaction('items','readwrite');
-      for(const item of entries)tx.objectStore('items').put(item);
+      for(const item of entries)tx.objectStore('items').put({...item,photo:photos[item.id]||null});
       tx.oncomplete=()=>{db.close();resolve()};
       tx.onerror=()=>reject(tx.error);
     };
-  }),assets);
+    });
+  },assets);
   await page.reload({waitUntil:'domcontentloaded',timeout:50000});
   await page.waitForTimeout(6500);
   await page.locator('#entrySplash').waitFor({state:'hidden',timeout:19000});
