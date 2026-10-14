@@ -21,7 +21,7 @@ jobs:
           npm install --no-save --no-package-lock playwright
           npx playwright install --with-deps chromium
       - name: Capture actual live mobile views with synthetic demo data
-        run: node scripts/capture-bazaar-screenshots.cjs
+        run: timeout --signal=TERM 185s node scripts/capture-bazaar-screenshots.cjs
       - name: Upload market preview image pack
         if: always()
         uses: actions/upload-artifact@v4
