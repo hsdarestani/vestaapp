@@ -24,9 +24,9 @@
   function finish(){
     if(finished||elapsed()<MIN_MS)return;
     finished=true;
-    clearTimeout(minimumTimer);
-    clearTimeout(slowTimer);
-    clearTimeout(fallbackTimer);
+    window.clearTimeout(minimumTimer);
+    window.clearTimeout(slowTimer);
+    window.clearTimeout(fallbackTimer);
     splash.classList.add('entry-leaving');
     splash.setAttribute('aria-hidden','true');
     window.setTimeout(()=>{splash.hidden=true},700);
