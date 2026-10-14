@@ -1,4 +1,5 @@
 name: Capture Vestaland Bazaar listing screenshots
+# Retry with correct wait for splash hiding.
 on:
   workflow_dispatch:
   push:
