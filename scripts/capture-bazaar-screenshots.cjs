@@ -15,9 +15,10 @@ const assets=[
   {id:'demo-lip',group:'beauty',category:'makeup',name:'رژ لب صورتی',color:'pink',routine:'none',created:1770000000005,opened:'2026-09-01',pao:12,photo:null},
   {id:'demo-care',group:'beauty',category:'skincare',name:'آبرسان صورت',color:'white',routine:'both',created:1770000000006,opened:'2026-09-15',pao:12,photo:null}
 ];
+let activeBrowser=null;
 (async()=>{
   fs.mkdirSync(DEST,{recursive:true});
-  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+  const browser=activeBrowser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const ctx=await browser.newContext({
     viewport:{width:432,height:768},deviceScaleFactor:2.5,
     isMobile:true,hasTouch:true,locale:'fa-IR',timezoneId:'Asia/Tehran',
@@ -90,5 +91,6 @@ const assets=[
   console.log('Screens captured:',files.length);
   console.log('Browser page errors count:',errors.length);
   await browser.close();
+  activeBrowser=null;
   if(files.length<6)throw Error('Expected six or more store screenshots');
-})().catch(e=>{console.error(e.stack||String(e));process.exitCode=1});
+})().catch(async e=>{console.error(e.stack||String(e));if(activeBrowser)await activeBrowser.close().catch(()=>{});process.exit(1)});
