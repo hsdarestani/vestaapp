@@ -1,5 +1,5 @@
 name: Capture Vestaland Bazaar listing screenshots
-# Retry with correct wait for splash hiding.
+# Final capture with account-scoped synthetic demo inventory.
 on:
   workflow_dispatch:
   push:
