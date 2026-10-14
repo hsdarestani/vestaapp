@@ -1,0 +1,97 @@
+name: Zibal merchant payment initiation preflight
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/zibal-preflight.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Install SSH password transport
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Test live merchant request from Iranian server without charging
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ -n "${HOST:-}" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          [[ "${HOST##*@}" = 193.177.242.64 ]]
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"; [[ "$target" == *@* ]] || target="root@$target"
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$target" 'python3 -' <<'PY'
+          import json,os,urllib.request,urllib.error
+          from pathlib import Path
+          p=Path('/srv/vestaapp/secrets/account.env')
+          assert p.is_file(), 'Account env missing'
+          values={}
+          for line in p.read_text().splitlines():
+              if '=' in line and not line.lstrip().startswith('#'):
+                  k,v=line.split('=',1); values[k]=v
+          assert values.get('ZIBAL_MERCHANT'), 'Zibal merchant is missing on app server'
+          print('Production feature flag subscriptions_enabled:',values.get('SUBSCRIPTIONS_ENABLED')=='1')
+          print('Production feature flag otp_enabled:',values.get('OTP_ENABLED')=='1')
+          print('Production feature flag app_checkout_enabled:',values.get('APP_CHECKOUT_ENABLED')=='1')
+          callback='https://app.vesta-cosmetics.ir/?zibal_preflight=1'
+          # Request creates only an unpaid pending payment with the advertised
+          # monthly subscription price; it does NOT charge any bank account.
+          payload={'merchant':values['ZIBAL_MERCHANT'],'amount':1990000,
+                   'callbackUrl':callback,'description':'تست اتصال درگاه وستالند، بدون پرداخت'}
+          request=urllib.request.Request('https://gateway.zibal.ir/v1/request',
+             data=json.dumps(payload,ensure_ascii=False).encode('utf-8'),
+             method='POST',headers={'Content-Type':'application/json',
+                                    'Accept':'application/json',
+                                    'User-Agent':'Mozilla/5.0 VestalandMerchantPreflight/1.0'})
+          try:
+              with urllib.request.urlopen(request,timeout=25) as r:
+                  j=json.loads(r.read(12000));print('Zibal merchant request HTTP:',r.status)
+          except urllib.error.HTTPError as e:
+              print('Zibal merchant request HTTP:',e.code)
+              try:
+                  j=json.loads(e.read(12000))
+                  print('Zibal result code:',j.get('result'))
+              except Exception:pass
+              raise SystemExit('Live Zibal merchant request failed')
+          except Exception as e:
+              print('Zibal connection failed:',type(e).__name__)
+              raise SystemExit(1)
+          print('Zibal result code:',j.get('result'))
+          print('Zibal trackId received:',str(j.get('trackId','')).isdigit())
+          assert int(j.get('result',0))==100, 'Zibal did not accept merchant/request'
+          assert str(j.get('trackId','')).isdigit(), 'No payment identifier returned'
+          print('PASS: Production merchant created a pending 199,000 Toman request, NO money charged.')
+          print('NOTE: This pending preflight request is not attached to a user subscription and MUST NOT be paid.')
+          PY
+      - name: Check production API flags and prevent unauthenticated billing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          root='https://app.vesta-cosmetics.ir'
+          def get(path):
+              r=urllib.request.Request(root+path,headers={'User-Agent':'Mozilla/5.0'})
+              with urllib.request.urlopen(r,timeout=20) as response:return json.load(response)
+          config=get('/api/account/config')
+          assert config.get('ok') and config.get('trial_days')==7
+          prices={x['id']:x['price_toman'] for x in config['plans']}
+          assert prices=={'monthly':199000,'quarterly':499000},prices
+          print('Production plan prices validated:',prices)
+          print('Production subscription enabled:',config.get('features',{}).get('subscriptions_enabled'))
+          req=urllib.request.Request(root+'/api/account/subscription/start',
+             data=b'{"plan":"monthly"}',method='POST',
+             headers={'Content-Type':'application/json','Origin':root,'User-Agent':'Mozilla/5.0'})
+          try:
+              with urllib.request.urlopen(req,timeout=20) as r:raise RuntimeError('FAIL: payment without login succeeded')
+          except urllib.error.HTTPError as e:
+              print('Unauthenticated subscription start HTTP:',e.code)
+              assert e.code==401, 'Expected rejection before any gateway payment is created'
+          print('PASS: Pricing and login protection checked; no charge or login bypass performed.')
+          PY
