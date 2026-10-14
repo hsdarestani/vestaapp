@@ -1,0 +1,35 @@
+name: Vestaland Zibal callback safety check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/zibal-callback-check.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check invalid payment callback is safe and returns to app
+        run: |
+          python3 - <<'PY'
+          import secrets,urllib.request,urllib.error
+          class NoFollow(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoFollow)
+          payment=secrets.token_urlsafe(24)
+          url='https://app.vesta-cosmetics.ir/api/account/subscription/callback?payment='+payment+'&trackId=123456789'
+          req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
+          try:
+              opener.open(req,timeout=18)
+              raise SystemExit('Unexpected callback success without a payment record')
+          except urllib.error.HTTPError as e:
+              location=e.headers.get('Location','')
+              print('Callback HTTP',e.code)
+              print('Redirect target host:',location.split('/')[2] if location.startswith('https://') else 'unknown')
+              print('Nonexistent payment cannot report success:','payment=pending' in location)
+              assert e.code==302
+              assert location=='https://app.vesta-cosmetics.ir/?payment=pending'
+          print('PASS: Callback is publicly reachable and safely ignores unknown/forged payment identifiers.')
+          PY
