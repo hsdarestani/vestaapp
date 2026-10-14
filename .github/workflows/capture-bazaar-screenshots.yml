@@ -1,0 +1,32 @@
+name: Capture Vestaland Bazaar listing screenshots
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/bazaar-listing-refresh-20261014]
+    paths:
+      - '.github/workflows/capture-bazaar-screenshots.yml'
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install headless browser
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Capture actual live mobile views with synthetic demo data
+        run: node scripts/capture-bazaar-screenshots.cjs
+      - name: Upload market preview image pack
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vestaland-bazaar-listing-screenshots-20261014
+          path: screenshots/bazaar/*.png
+          retention-days: 30
+          if-no-files-found: warn
