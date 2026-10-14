@@ -1,0 +1,1 @@
+Deploy the payment success receipt hotfix only to the existing Vestaland web files and isolated account API. Do not restart Vesta/Cutella stores, shared ingress or their databases.
