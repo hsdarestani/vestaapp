@@ -1,0 +1,74 @@
+name: Deploy verified Zibal receipt UI and API
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/payment-receipt-release-once.flag'
+permissions:
+  contents: read
+concurrency:
+  group: vestaapp-payment-receipt-hotfix
+  cancel-in-progress: false
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate receipt code and safety
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          node --check commerce.js
+          python3 -m unittest discover -s tests -p '*_test.py' -q
+          bash -n deploy/payment-receipt-hotfix.sh
+          [[ "${HOST##*@}" = "193.177.242.64" && -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+          grep -q 'vestaland-receipt-20261014-v1' sw.js
+          grep -q 'def last_verified_payment' backend/account_server.py
+          grep -q 'function paymentSuccessView' commerce.js
+      - name: Package only 5 scoped app files
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release"/{public,backend}
+          cp index.html sw.js commerce.js commerce.css "$RUNNER_TEMP/release/public/"
+          cp backend/account_server.py "$RUNNER_TEMP/release/backend/"
+          tar -czf "$RUNNER_TEMP/vestaland-payment-receipt-hotfix.tgz" -C "$RUNNER_TEMP/release" .
+      - name: Install SSH client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Update only Vestaland account API and payment UI
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"
+          [[ "$target" = *@* ]] || target="root@$target"
+          options=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" scp "${options[@]}" "$RUNNER_TEMP/vestaland-payment-receipt-hotfix.tgz" "$target:/tmp/vestaland-payment-receipt-hotfix.tgz"
+          sshpass -p "$PASS" ssh "${options[@]}" "$target" 'bash -s' < deploy/payment-receipt-hotfix.sh
+      - name: Public regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 18 https://app.vesta-cosmetics.ir/ -o /tmp/vesta-receipt-home
+          grep -q '/commerce.js?v=20261014-receipt1' /tmp/vesta-receipt-home
+          curl -fsS --max-time 18 'https://app.vesta-cosmetics.ir/commerce.js?v=20261014-receipt1' -o /tmp/vesta-receipt-js
+          grep -q 'paymentSuccessView' /tmp/vesta-receipt-js
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://app.vesta-cosmetics.ir/api/account/subscription/latest)"
+          echo "Unauthenticated private receipt request HTTP=$code"
+          test "$code" = 401
+          for host in cutellashop.ir vesta-cosmetics.ir; do
+            result="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 18 "https://$host/")"
+            echo "$host HTTP=$result"
+            [[ "$result" = 200 || "$result" = 301 || "$result" = 302 ]]
+          done
