@@ -67,7 +67,7 @@ let activeBrowser=null;
   }),assets);
   await page.reload({waitUntil:'domcontentloaded',timeout:50000});
   await page.waitForTimeout(6500);
-  await page.locator('#entrySplash[hidden],#entrySplash.entry-leaving').waitFor({timeout:19000});
+  await page.locator('#entrySplash').waitFor({state:'hidden',timeout:19000});
   await page.addStyleTag({content:'.commerce-profile-status b{font-size:0!important}.commerce-profile-status b::after{content:"حساب نمونه";font-size:13px!important}'});
   const shot=async (file)=>{await page.waitForTimeout(420);await page.screenshot({path:path.join(DEST,file),animations:'disabled'})};
   await shot('02-home.png');
