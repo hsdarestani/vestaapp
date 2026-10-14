@@ -20,6 +20,7 @@ jobs:
           node --check commerce.js
           node --check splash.js
           node --test tests/splash.test.cjs
+          node --test tests/voice.test.cjs
           node --check cloudflare/src/index.js
           node --test tests/profile.test.cjs
           node --test tests/visual_assets.test.cjs
