@@ -81,7 +81,7 @@ jobs:
           BAZAAR_KEY_ALIAS: ${{ secrets.BAZAAR_KEY_ALIAS }}
           BAZAAR_KEY_PASSWORD: ${{ secrets.BAZAAR_KEY_PASSWORD }}
           BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
-        run: gradle -p android clean :app:assembleRelease :app:bundleRelease --stacktrace
+        run: gradle -p android clean :app:assembleDebug :app:assembleRelease :app:bundleRelease --stacktrace
 
       - name: Build unsigned release AAB
         if: steps.signing.outputs.available != 'true'
