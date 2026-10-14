@@ -1,0 +1,59 @@
+name: Inspect Vestaland Bazaar release access
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/check-bazaar-access.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Bazaar Pishkhan access and existing app signing readiness
+        env:
+          CAFEBAZAR_API: ${{ secrets.CAFEBAZAR_API }}
+          BAZAAR_KEYSTORE_BASE64: ${{ secrets.BAZAAR_KEYSTORE_BASE64 }}
+          BAZAAR_KEYSTORE_PASSWORD: ${{ secrets.BAZAAR_KEYSTORE_PASSWORD }}
+          BAZAAR_KEY_ALIAS: ${{ secrets.BAZAAR_KEY_ALIAS }}
+          BAZAAR_KEY_PASSWORD: ${{ secrets.BAZAAR_KEY_PASSWORD }}
+          BAZAAR_RSA_PUBLIC_KEY: ${{ secrets.BAZAAR_RSA_PUBLIC_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+          key=os.environ.get('CAFEBAZAR_API','')
+          print("Pishkhan token secret configured:",bool(key))
+          print("Android release signing credentials all configured:",all(os.environ.get(k) for k in ('BAZAAR_KEYSTORE_BASE64','BAZAAR_KEYSTORE_PASSWORD','BAZAAR_KEY_ALIAS','BAZAAR_KEY_PASSWORD')))
+          print("CafeBazaar native billing RSA public key configured:",bool(os.environ.get('BAZAAR_RSA_PUBLIC_KEY')))
+          if not key:raise SystemExit('CAFEBAZAR_API is missing in repository Secrets')
+          base='https://api.pishkhan.cafebazaar.ir/v1'
+          headers={'CAFEBAZAAR-PISHKHAN-API-SECRET':key,'Accept':'application/json','User-Agent':'Vestaland-release-readonly-audit/1.0'}
+          for kind in ['last-published','last-committed','last-uncommitted']:
+            url=base+'/apps/releases/'+kind+'/'
+            req=urllib.request.Request(url,headers=headers,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=17) as response:
+                status=response.status
+                raw=response.read(120000)
+            except urllib.error.HTTPError as e:
+              status=e.code;raw=e.read(120000)
+            except Exception as e:
+              print('Bazaar '+kind+' connection error:',type(e).__name__)
+              continue
+            try:obj=json.loads(raw)
+            except:obj={}
+            print('Bazaar '+kind+' HTTP',status)
+            if isinstance(obj,dict):
+              print('Response shape:',','.join(sorted(obj.keys())[:18]))
+              for name in ('package_name','packageName','app','version_name','versionName','version_code','versionCode','status'):
+                value=obj.get(name)
+                if isinstance(value,(str,int,float)) and len(str(value))<90: print(name+':',value)
+              for name in ('error','message','detail','code'):
+                value=obj.get(name)
+                if isinstance(value,(str,int,float)) and len(str(value))<110:
+                  print('API '+name+':',str(value)[:110])
+            if kind=='last-published' and status in (401,403):
+              raise SystemExit('Pishkhan token is not authorized for the requested application')
+          print('Read-only inspection finished: no APK uploaded, no draft created, no publish action taken.')
+          PY
