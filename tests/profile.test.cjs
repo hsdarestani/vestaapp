@@ -49,7 +49,7 @@ test('profile page hides old data section and offers practical preferences',()=>
   const {app}=makeApp();
   const html=app.meView();
   assert.match(html,/id="profileForm"/);
-  for(const value of ['سایز لباس','سایز کفش','نوع پوست من','استایل مورد علاقه‌م','رنگ‌هایی که دوست دارم','روتین و میز آرایش']){
+  for(const value of ['سایز لباس','سایز کفش','نوع پوست من','سبک پوشش','رنگ‌های مورد علاقه','روتین و میز آرایش']){
     assert.ok(html.includes(value),value);
   }
   for(const old of ['حریم خصوصی و داده‌ها','پشتیبان‌گیری از وسایل','بازگردانی پشتیبان','حذف همه وسایل این دستگاه','همگام‌سازی ابری و تشخیص AI']){
