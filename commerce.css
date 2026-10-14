@@ -69,3 +69,13 @@
 .commerce-intro img{width:min(175px,50vw);height:135px;object-fit:cover;object-position:center 30%;border-radius:23px;box-shadow:0 7px 18px #d99db544}
 .commerce-empty img{height:122px;object-fit:cover;object-position:center 30%;border-radius:20px;box-shadow:0 5px 17px #d99db52b}
 .commerce-profile-status .profile-inline-art{object-fit:cover;object-position:center 27%}
+
+
+/* Server-verified payment receipt: prominent and durable, not a 3-second toast */
+.payment-success-icon{display:grid;place-items:center;width:82px;height:82px;margin:5px auto 16px;border-radius:29px;background:linear-gradient(140deg,#ffe1f0,#e7fff0);border:3px solid white;box-shadow:0 7px 0 #eeb7d4,0 12px 19px #d699ba55;color:#158453;font-size:42px;font-weight:900}
+.payment-success-title{text-align:center;margin:8px 0 12px;font-size:19px;line-height:1.8;color:#913c6f;font-weight:900}
+.payment-receipt{display:flex;flex-direction:column;gap:0;margin:20px 0 24px;border:1px solid #f1cfe0;border-radius:20px;background:#fff;overflow:hidden}
+.payment-receipt>div{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 15px;border-bottom:1px solid #f8e6ef}
+.payment-receipt>div:last-child{border-bottom:none}
+.payment-receipt span{color:#97738a;font-size:11px}
+.payment-receipt b{color:#874367;font-size:12px;font-weight:900;text-align:left}
