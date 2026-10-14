@@ -118,5 +118,4 @@ jobs:
           name: vestaland-cafebazaar-1.3.0
           path: bazaar-output/
           retention-days: 30
-
-# build-refresh: 2026-10-12 — new personal wardrobe app
+# signed-release-check: 2026-10-14 -- revalidate signing after repository secrets were configured
