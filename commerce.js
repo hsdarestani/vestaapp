@@ -63,17 +63,17 @@ function modalBase(title,content){
  dlg.innerHTML='<div class="commerce-shade" data-commerce-close></div><div class="commerce-panel"><div class="commerce-handle"></div><div class="commerce-head"><h2>'+title+'</h2><button aria-label="بستن" type="button" data-commerce-close>×</button></div>'+content+'</div>';
 }
 function statusText(){
- if(!S.user)return 'هنوز وارد حسابت نشدی.';
+ if(!S.user)return 'برای ادامه وارد حساب شو.';
  if(S.user.plan==='trial')return 'دوره رایگان تا '+new Date(S.user.trial_until*1000).toLocaleDateString('fa-IR');
- if(S.user.plan==='paid')return 'اشتراکت فعاله تا '+new Date(S.user.paid_until*1000).toLocaleDateString('fa-IR');
- return 'دوره آزمایشی و اشتراکت تموم شده.';
+ if(S.user.plan==='paid')return 'اعتبار اشتراک تا '+new Date(S.user.paid_until*1000).toLocaleDateString('fa-IR');
+ return 'دوره رایگان و اشتراک شما به پایان رسیده.';
 }
 function pricing(){
  const plans=S.config?.plans||[{id:'monthly',price_toman:199000,duration_days:30},{id:'quarterly',price_toman:499000,duration_days:90}];
  return '<div class="commerce-plans">'+plans.map(p=>'<div class="commerce-plan '+(p.id==='quarterly'?'featured':'')+'"><div><strong>'+(p.id==='monthly'?'ماهانه':'سه‌ماهه')+'</strong><small>'+(p.id==='monthly'?'۳۰ روز':'۹۰ روز')+'</small></div><b>'+toman(p.price_toman)+'</b><button class="btn btn-primary" data-payplan="'+p.id+'" '+(!S.token||!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))||S.loading?'disabled':'')+'>انتخاب پلن</button></div>').join('')+'</div>';
 }
 function loginView(){
- return '<div class="commerce-intro"><img src="/assets/photos/beauty-care.webp?v=stock20261013" alt="" loading="lazy"></div><p class="commerce-lead">با شماره موبایلت وارد شو و ۷ روز اول رو رایگان از امکانات وستالند استفاده کن!</p>'+
+ return '<div class="commerce-intro"><img src="/assets/photos/beauty-care.webp?v=stock20261013" alt="" loading="lazy"></div><p class="commerce-lead">با شماره موبایل وارد شو و ۷ روز اول رایگان استفاده کن.</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  '<form id="commerceLoginForm"><label>شماره موبایل<input name="phone" inputmode="tel" autocomplete="tel" required placeholder="۰۹۱۲۱۲۳۴۵۶۷" value="'+safe(S.phone)+'"></label>'+
  (S.otp?'<label>کد پیامک‌شده<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9۰-۹]{6}" maxlength="6" placeholder="کد ۶ رقمی" required></label>':'')+
@@ -102,7 +102,7 @@ function paymentSuccessView(){
  '<div><span>پلن اشتراک</span><b>'+(p.plan==='monthly'?'ماهانه':'سه‌ماهه')+'</b></div>'+
  '<div><span>زمان تأیید پرداخت</span><b>'+safe(at)+'</b></div>'+
  '<div><span>اعتبار اشتراک تا</span><b>'+safe(end)+'</b></div>'+
- '</div><button type="button" class="btn btn-primary btn-block" data-commerce-close>عالیه، بریم به وستالند 💗</button>';
+ '</div><button type="button" class="btn btn-primary btn-block" data-commerce-close>بازگشت به وستالند</button>';
 }
 function accountView(){
  return '<div class="commerce-account-card">'+safe(S.user?.phone||'')+'<p>'+safe(statusText())+'</p></div>'+
@@ -114,7 +114,7 @@ function accountView(){
 function cartView(){
  const st=S.store,items=S.cart[st],name=st==='vesta'?'وستا':'کیوتلا';
  const count=items.reduce((n,i)=>n+i.quantity,0);
- return '<p class="commerce-lead">سبد خرید وستا و کیوتلا جداست. هر سفارشت رو از همین‌جا پیگیری کن.</p>'+
+ return '<p class="commerce-lead">سبد خرید هر فروشگاه جداست و سفارش‌ها از همین‌جا قابل پیگیری هستن.</p>'+
  '<div class="commerce-tabs"><button data-cartstore="vesta" class="'+(st==='vesta'?'active':'')+'">وستا</button><button data-cartstore="cutella" class="'+(st==='cutella'?'active':'')+'">کیوتلا</button></div>'+
  (items.length?'<div class="commerce-cart-items">'+items.map(x=>'<div class="commerce-cart-line"><span>'+safe(x.name)+'</span><div><button data-qty="-1" data-productid="'+x.id+'" aria-label="کم کردن">−</button><b>'+new Intl.NumberFormat('fa-IR').format(x.quantity)+'</b><button data-qty="1" data-productid="'+x.id+'" aria-label="افزودن">＋</button></div></div>').join('')+'</div>':
  '<div class="commerce-empty"><img src="/assets/photos/shop-cutella.webp?v=stock20261013" alt="" loading="lazy"><p>سبد '+name+' هنوز خالیه.</p></div>')+
@@ -135,22 +135,22 @@ function checkoutView(){
  '<button class="btn btn-primary btn-block" type="submit" '+(S.loading?'disabled':'')+'>ثبت سفارش در '+(S.store==='vesta'?'وستا':'کیوتلا')+'</button></form>';
 }
 function aiView(){
- return '<p class="commerce-lead">از لباس‌ها و وسایلت ایده‌های تازه بگیر.</p>'+
- '<form id="commerceAiForm"><label>دوست داری برای چی پیشنهاد بگیری؟<textarea name="question" rows="3" maxlength="240" placeholder="مثلاً برای مهمونی عصر امروز چی بپوشم؟"></textarea></label>'+
+ return '<p class="commerce-lead">براساس لباس‌ها و وسایل ثبت‌شده پیشنهاد بگیر.</p>'+
+ '<form id="commerceAiForm"><label>برای چه موقعیتی پیشنهاد می‌خوای؟<textarea name="question" rows="3" maxlength="240" placeholder="مثلاً برای مهمونی عصر امروز چی بپوشم؟"></textarea></label>'+
  '<button class="btn btn-primary btn-block" '+(S.loading||!isEnabled('ai_enabled')?'disabled':'')+' type="submit">پیشنهاد هوشمند</button></form>'+
  (!isEnabled('ai_enabled')?'<p class="commerce-warning">سرویس AI هنوز فعال نشده است؛ فعلاً از «ست امروز» استفاده کن.</p>':'')+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
- (S.aiResponse?'<div class="commerce-ai-answer"><b>پیشنهاد من برای تو</b><p>'+safe(S.aiResponse)+'</p></div>':'');
+ (S.aiResponse?'<div class="commerce-ai-answer"><b>پیشنهاد استایل</b><p>'+safe(S.aiResponse)+'</p></div>':'');
 }
 function ordersView(){
  return '<p class="commerce-lead">سفارش‌های ثبت‌شده با همین حساب</p>'+
  (S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
- (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/photos/shop-mixed.webp?v=stock20261013" alt="" loading="lazy"><p>فعلاً سفارشی ثبت نشده.</p></div>')+
+ (S.orderStatus.length?S.orderStatus.map(o=>'<div class="commerce-order">سفارش '+safe(o.store==='vesta'?'وستا':'کیوتلا')+' #'+safe(o.order_id||'')+' <small>وضعیت هنگام ثبت: '+safe(o.payment_status||'pending')+'</small></div>').join(''):'<div class="commerce-empty"><img src="/assets/photos/shop-mixed.webp?v=stock20261013" alt="" loading="lazy"><p>هنوز سفارشی ثبت نشده.</p></div>')+
  '<p class="commerce-note">برای وضعیت پرداخت یا ارسال، رسید و حساب همان فروشگاه رو هم بررسی کن.</p>';
 }
 function renderModal(){
  if(!S.modal)return;
- const views={login:['ورود به وستالند',loginView],plans:['اشتراک‌های وستالند',plansView],account:['حساب من',accountView],cart:['سبد خرید من',cartView],checkout:['ثبت سفارش',checkoutView],ai:['استایلیست هوشمند',aiView],orders:['سفارش‌های من',ordersView],'payment-success':['پرداخت موفق 💗',paymentSuccessView]};
+ const views={login:['ورود به وستالند',loginView],plans:['پلن‌های اشتراک',plansView],account:['حساب من',accountView],cart:['سبد خرید من',cartView],checkout:['ثبت سفارش',checkoutView],ai:['استایلیست هوشمند',aiView],orders:['سفارش‌های من',ordersView],'payment-success':['تأیید پرداخت',paymentSuccessView]};
  const [title,render]=views[S.modal]||views.login;
  modalBase(title,render());
 }
@@ -263,7 +263,7 @@ async function loginSubmit(form){
       await window.VestalandInventory.ready;
       await window.VestalandInventory.bindUser(S.user.id);
    }
-   updateGate();notify('خوش اومدی به وستالند');
+   updateGate();notify('ورود موفق بود.');
    if(!signedInAccess())S.modal='plans';else close();
   }
  }catch(e){S.error=e.message}finally{S.loading=false;renderModal();decorate()}
@@ -330,7 +330,7 @@ async function askAi(form){
    };stored.onerror=()=>reject(stored.error);
   });
   const x=await api('ai/recommend',{body:{items:list.slice(0,18),question:String(fd.get('question')||'').slice(0,240)}});
-  S.aiResponse=x.suggestion;notify('پیشنهاد شخصی آماده‌ست');
+  S.aiResponse=x.suggestion;notify('پیشنهاد آماده است.');
  }catch(e){S.error=e.message}
  finally{S.loading=false;renderModal()}
 }
@@ -415,7 +415,7 @@ window.VestalandCommerce={
   const arr=S.cart[product.store],existing=arr.find(x=>x.id===product.id);
   if(existing)existing.quantity=Math.min(10,existing.quantity+1);
   else arr.push({id:product.id,name:product.name,quantity:1,price:product.price});
-  S.store=product.store;S.checkoutRequestId=null;persistCart();notify('به سبد خریدت اضافه شد');decorate();
+  S.store=product.store;S.checkoutRequestId=null;persistCart();notify('به سبد خرید اضافه شد.');decorate();
  },
  open
 };

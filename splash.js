@@ -48,12 +48,12 @@
   // 5.6s minimum (including reduced-motion users); readiness never shortens it.
   const minimumTimer=window.setTimeout(()=>{
     check();
-    if(!finished&&status)status.textContent='یه کوچولو دیگه... دنیای قشنگت داره آماده می‌شه ♡';
+    if(!finished&&status)status.textContent='چند لحظه دیگه، اپ آماده می‌شه.';
   },MIN_MS+25);
   // Service worker/offline/slow networks must not trap people under the splash.
   const slowTimer=window.setTimeout(()=>{
     if(finished)return;
-    if(status)status.textContent='اتصال یه ذره طول کشیده... ✨';
+    if(status)status.textContent='اتصال کمی طولانی شده؛ می‌تونی وارد اپ بشی.';
     if(continueButton)continueButton.hidden=false;
   },9500);
   const fallbackTimer=window.setTimeout(()=>finish(),16000);
