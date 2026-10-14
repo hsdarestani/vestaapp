@@ -50,6 +50,18 @@ jobs:
               print('Release metadata present:',isinstance(release,dict))
               if isinstance(release,dict): print('Release fields:',','.join(sorted(release.keys())[:18]))
               if isinstance(release,dict):
+                packages=release.get('packages')
+                print('Packages container type:',type(packages).__name__)
+                if isinstance(packages,(list,dict)):
+                  items=packages[:6] if isinstance(packages,list) else list(packages.values())[:6]
+                  for idx,item in enumerate(items):
+                    print('Package entry',idx,'type',type(item).__name__)
+                    if isinstance(item,dict):
+                      print('Package entry fields:',','.join(sorted(item.keys())[:25]))
+                      for field in ('package_name','packageName','applicationId','version_code','versionCode','version_name','versionName','name','package'):
+                        value=item.get(field)
+                        if isinstance(value,(str,int,float)) and len(str(value))<120: print('Package',idx,field,':',value)
+              if isinstance(release,dict):
                 for field in ('package_name','packageName','version_name','versionName','version_code','versionCode','status'):
                   value=release.get(field)
                   if isinstance(value,(str,int,float)) and len(str(value))<90: print('Release '+field+':',value)
