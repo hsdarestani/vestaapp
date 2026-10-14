@@ -48,6 +48,7 @@ jobs:
               print('Response shape:',','.join(sorted(obj.keys())[:18]))
               release=obj.get('release')
               print('Release metadata present:',isinstance(release,dict))
+              if isinstance(release,dict): print('Release fields:',','.join(sorted(release.keys())[:18]))
               if isinstance(release,dict):
                 for field in ('package_name','packageName','version_name','versionName','version_code','versionCode','status'):
                   value=release.get(field)
