@@ -46,6 +46,12 @@ jobs:
             print('Bazaar '+kind+' HTTP',status)
             if isinstance(obj,dict):
               print('Response shape:',','.join(sorted(obj.keys())[:18]))
+              release=obj.get('release')
+              print('Release metadata present:',isinstance(release,dict))
+              if isinstance(release,dict):
+                for field in ('package_name','packageName','version_name','versionName','version_code','versionCode','status'):
+                  value=release.get(field)
+                  if isinstance(value,(str,int,float)) and len(str(value))<90: print('Release '+field+':',value)
               for name in ('package_name','packageName','app','version_name','versionName','version_code','versionCode','status'):
                 value=obj.get(name)
                 if isinstance(value,(str,int,float)) and len(str(value))<90: print(name+':',value)
