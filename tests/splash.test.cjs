@@ -92,11 +92,11 @@ test('HTML and worker assets match and boot stages signal readiness',()=>{
   const inventory=fs.readFileSync('app.js','utf8');
   const commerce=fs.readFileSync('commerce.js','utf8');
   assert.match(html,/id="entrySplash"/);
-  assert.match(html,/\/splash\.js\?v=20261014-magic1/);
-  assert.match(html,/\/splash\.css\?v=20261014-magic1/);
-  assert.match(sw,/vestaland-magical-entry-20261014-v1/);
-  assert.match(sw,/\/splash\.css\?v=20261014-magic1/);
-  assert.match(sw,/\/splash\.js\?v=20261014-magic1/);
+  assert.match(html,/\/splash\.js\?v=20261014-voice2/);
+  assert.match(html,/\/splash\.css\?v=20261014-voice2/);
+  assert.match(sw,/vestaland-voice-20261014-v2/);
+  assert.match(sw,/\/splash\.css\?v=20261014-voice2/);
+  assert.match(sw,/\/splash\.js\?v=20261014-voice2/);
   assert.match(inventory,/VestalandSplash\?\.ready\('inventory'\)/);
   assert.match(commerce,/VestalandSplash\?\.ready\('commerce'\)/);
   assert.match(html,/skip-entry-splash/);
