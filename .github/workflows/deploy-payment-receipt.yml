@@ -1,10 +1,6 @@
 name: Deploy verified Zibal receipt UI and API
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'deploy/payment-receipt-release-once.flag'
 permissions:
   contents: read
 concurrency:
