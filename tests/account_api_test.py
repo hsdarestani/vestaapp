@@ -92,6 +92,26 @@ class VestalandAccountTests(unittest.TestCase):
                 api.verify_bazaar_receipt(user,"monthly","different-receipt-not-verified")
             self.assertEqual(exc.exception.status,422)
 
+    def test_latest_receipt_is_only_returned_to_owning_user(self):
+        first=self.create_user()
+        other=self.create_user("09123456780")
+        ts=api.now()
+        with api.conn() as db:
+            db.execute("INSERT INTO subscriptions(id,user_id,plan,amount_rial,track_id,status,created_at,verified_at) VALUES(?,?,?,?,?,'paid',?,?)",
+                       ("private-paid-receipt-0001",first["id"],"monthly",1990000,"987654",ts-80,ts-30))
+            db.execute("INSERT INTO subscriptions(id,user_id,plan,amount_rial,track_id,status,created_at) VALUES(?,?,?,?,?,'pending',?)",
+                       ("private-pending-receipt02",other["id"],"quarterly",4990000,"999991",ts-10))
+            db.execute("UPDATE users SET paid_until=? WHERE id=?",(ts+30*86400,first["id"]))
+        paid_user=api.db_one("SELECT * FROM users WHERE id=?",(first["id"],))
+        result=api.last_verified_payment(paid_user)
+        self.assertEqual(result["payment"]["status"],"paid")
+        self.assertEqual(result["payment"]["price_toman"],199000)
+        self.assertEqual(result["payment"]["plan"],"monthly")
+        self.assertEqual(result["payment"]["verified_at"],ts-30)
+        self.assertNotIn("track_id",result["payment"])
+        unrelated=api.db_one("SELECT * FROM users WHERE id=?",(other["id"],))
+        self.assertIsNone(api.last_verified_payment(unrelated)["payment"])
+
     def test_zibal_amount_and_double_callback(self):
         user=self.create_user()
         calls=[]
