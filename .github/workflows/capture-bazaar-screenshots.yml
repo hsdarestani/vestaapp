@@ -1,5 +1,5 @@
 name: Capture Vestaland Bazaar listing screenshots
-# Final capture with account-scoped synthetic demo inventory.
+# Final marketing capture: populated local inventory with demo imagery.
 on:
   workflow_dispatch:
   push:
