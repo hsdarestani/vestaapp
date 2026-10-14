@@ -53,7 +53,7 @@ let activeBrowser=null;
   if(await page.locator('#entrySplash').count())await page.screenshot({path:path.join(DEST,'01-splash.png')});
   await page.waitForTimeout(5200);
   await page.evaluate((entries)=>new Promise((resolve,reject)=>{
-    const req=indexedDB.open('vestaland-personal-v1',1);
+    const req=indexedDB.open('vestaland-personal-user-v1-999',1);
     req.onupgradeneeded=()=>{
       if(!req.result.objectStoreNames.contains('items'))req.result.createObjectStore('items',{keyPath:'id'});
     };
@@ -73,7 +73,7 @@ let activeBrowser=null;
   await shot('02-home.png');
   for(const [route,name] of [['closet','03-wardrobe.png'],['beauty','04-beauty.png'],['shop','05-stores.png'],['me','06-profile.png']]){
     await page.locator('.bottom-nav button[data-route="'+route+'"]').click();
-    await page.waitForTimeout(route==='shop'?2600:700);
+    if(route==='shop'){ await page.waitForSelector('.item.product',{timeout:12500}).catch(()=>{}); await page.waitForTimeout(1400); } else await page.waitForTimeout(700);
     await shot(name);
   }
   const subscriptions=page.locator('button[data-commerce-open="plans"]').first();
