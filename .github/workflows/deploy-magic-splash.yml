@@ -1,0 +1,73 @@
+name: Deploy Vestaland magical entry
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['deploy/magic-splash-release-once.flag']
+permissions:
+  contents: read
+concurrency:
+  group: vestaland-magical-splash-static
+  cancel-in-progress: false
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate six static splash files
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          node --check splash.js
+          node --check app.js
+          node --check commerce.js
+          node --test tests/splash.test.cjs
+          bash -n deploy/deploy-magic-splash.sh
+          test "${HOST##*@}" = '193.177.242.64'
+          [[ -n "${PASS:-}" && -n "${SSH_KNOWN_HOSTS:-}" ]]
+      - name: Bundle static files only
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/magic"
+          cp index.html app.js commerce.js sw.js splash.js splash.css "$RUNNER_TEMP/magic/"
+          tar -czf "$RUNNER_TEMP/vestaland-magic-splash.tgz" -C "$RUNNER_TEMP/magic" .
+      - name: Install SSH helper
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Update only Vestaland origin static files
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          PASS: ${{ secrets.PASS }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          target="$HOST"
+          [[ "$target" = *@* ]] || target="root@$target"
+          opts=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+          sshpass -p "$PASS" scp "${opts[@]}" "$RUNNER_TEMP/vestaland-magic-splash.tgz" "$target:/tmp/vestaland-magic-splash.tgz"
+          sshpass -p "$PASS" ssh "${opts[@]}" "$target" 'bash -s' < deploy/deploy-magic-splash.sh
+      - name: Verify origin publicly and stores intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 2 --max-time 20 https://app.vesta-cosmetics.ir/ -o /tmp/magic-home
+          grep -q 'id="entrySplash"' /tmp/magic-home
+          grep -q 'splash.js?v=20261014-magic1' /tmp/magic-home
+          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/splash.js?v=20261014-magic1' -o /tmp/magic-js
+          curl -fsS --max-time 20 'https://app.vesta-cosmetics.ir/splash.css?v=20261014-magic1' -o /tmp/magic-css
+          grep -q 'MIN_MS=5600' /tmp/magic-js
+          grep -q 'entry-logo-arrive' /tmp/magic-css
+          curl -fsS --max-time 20 https://app.vesta-cosmetics.ir/api/account/health | grep -q '"ok":true'
+          for h in vesta-cosmetics.ir cutellashop.ir; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "https://$h/")"
+            echo "$h HTTP=$status"
+            [[ "$status" = 200 || "$status" = 301 || "$status" = 302 ]]
+          done
