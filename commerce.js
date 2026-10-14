@@ -8,7 +8,7 @@ const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const toman=n=>new Intl.NumberFormat('fa-IR').format(Number(n)||0)+' تومان';
 const sessionKey='vestaland-session-v1',cartKey='vestaland-cart-v1',paymentKey='vestaland-last-payment-v1';
 const defaultCart=()=>({vesta:[],cutella:[]});
-const S={config:null,user:null,token:localStorage.getItem(sessionKey)||'',phone:'',cart:defaultCart(),loading:false,store:'vesta',modal:null,aiResponse:'',error:'',otp:false,orderStatus:[],mounted:false};
+const S={config:null,user:null,token:localStorage.getItem(sessionKey)||'',phone:'',cart:defaultCart(),loading:false,store:'vesta',modal:null,aiResponse:'',error:'',otp:false,orderStatus:[],mounted:false,latestPayment:null};
 try{
  const old=JSON.parse(localStorage.getItem(cartKey)||'{}');
  for(const st of ['vesta','cutella'])if(Array.isArray(old[st]))S.cart[st]=old[st].filter(x=>x&&Number(x.id)>0).slice(0,30).map(x=>({id:Number(x.id),name:String(x.name||'') .slice(0,100),quantity:Math.max(1,Math.min(10,Number(x.quantity)||1)),price:Number(x.price)||0}));
@@ -55,7 +55,7 @@ const isBazaarAndroid=()=>/VestalandBazaar\//.test(navigator.userAgent)||Boolean
 function open(kind){
  S.modal=kind;S.error='';renderModal();
 }
-function close(){if(gateRequired()&&!signedInAccess()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
+function close(){if(S.modal==='payment-success'&&S.latestPayment){try{localStorage.setItem('vestaland-confirmed-payment-v1',S.latestPayment.id)}catch(e){}}if(gateRequired()&&!signedInAccess()){S.modal=S.user?'plans':'login';renderModal();return}S.modal=null;S.error='';const dlg=$('#commerceLayer');if(dlg){dlg.hidden=true;dlg.innerHTML=''} }
 function modalBase(title,content){
  let dlg=$('#commerceLayer');
  if(!dlg){dlg=document.createElement('section');dlg.id='commerceLayer';dlg.className='commerce-overlay';dlg.setAttribute('role','dialog');dlg.setAttribute('aria-modal','true');document.body.append(dlg)}
@@ -83,16 +83,31 @@ function loginView(){
 }
 function plansView(){
  return '<p class="commerce-lead">'+safe(statusText())+'</p><p class="commerce-note">۷ روز اول رایگان برای هر شماره، فقط یک بار. هزینه اشتراک پس از انتخاب پلن دریافت می‌شود؛ تمدید خودکار فعال نیست.</p>'+
- pricing()+(S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
+ pricing()+(S.latestPayment?'<button class="btn btn-outline btn-block" data-commerce-open="payment-success">مشاهده تأییدیه آخرین پرداخت ✓</button>':'')+(S.error?'<p class="commerce-error">'+safe(S.error)+'</p>':'')+
  (S.token&&localStorage.getItem(paymentKey)&&!isBazaarAndroid()?'<button class="btn btn-outline btn-block" data-payment-refresh>بررسی آخرین پرداخت</button>':'')+
  (!S.token?'<button class="btn btn-outline btn-block" data-commerce-open="login">اول وارد شو</button>':'')+
  (isBazaarAndroid()?'<p class="commerce-note">پرداخت اشتراک نسخه کافه‌بازار فقط از طریق پرداخت امن خود بازار و تأیید سمت سرور انجام می‌شود.</p>':'')+
  (!(isBazaarAndroid()?isEnabled('bazaar_enabled'):isEnabled('subscriptions_enabled'))?'<p class="commerce-warning">پرداخت اشتراک بعد از اتصال و تأیید درگاه فعال می‌شود.</p>':'');
 }
+function paymentSuccessView(){
+ const p=S.latestPayment;
+ if(!p||p.status!=='paid')return '<p class="commerce-note">رسید تأییدشده‌ای برای این حساب پیدا نشد.</p><button class="btn btn-outline btn-block" data-commerce-close>بازگشت</button>';
+ const end=new Date(Number(p.expires_at)*1000).toLocaleDateString('fa-IR');
+ const at=new Date(Number(p.verified_at)*1000).toLocaleString('fa-IR');
+ return '<div class="payment-success-icon" aria-hidden="true">✓</div>'+
+ '<h3 class="payment-success-title">پرداخت با موفقیت تأیید شد!</h3>'+
+ '<p class="commerce-lead">اشتراکت در وستالند فعال شد. این تأییدیه از سوابق پرداخت سرور دریافت شده است.</p>'+
+ '<div class="payment-receipt">'+
+ '<div><span>مبلغ پرداخت‌شده</span><b>'+toman(p.price_toman)+'</b></div>'+
+ '<div><span>پلن اشتراک</span><b>'+(p.plan==='monthly'?'ماهانه':'سه‌ماهه')+'</b></div>'+
+ '<div><span>زمان تأیید پرداخت</span><b>'+safe(at)+'</b></div>'+
+ '<div><span>اعتبار اشتراک تا</span><b>'+safe(end)+'</b></div>'+
+ '</div><button type="button" class="btn btn-primary btn-block" data-commerce-close>عالیه، بریم به وستالند 💗</button>';
+}
 function accountView(){
  return '<div class="commerce-account-card">'+safe(S.user?.phone||'')+'<p>'+safe(statusText())+'</p></div>'+
  (S.user&&!S.user.active?pricing():'')+
- '<button class="btn btn-outline btn-block" data-commerce-open="plans">مدیریت و تمدید اشتراک</button>'+
+ '<button class="btn btn-outline btn-block" data-commerce-open="plans">مدیریت و تمدید اشتراک</button>'+ (S.latestPayment?'<button class="btn btn-outline btn-block" data-commerce-open="payment-success">رسید آخرین پرداخت موفق ✓</button>':'')+
  '<button class="btn btn-outline btn-block" data-commerce-open="orders">سفارش‌های من</button>'+
  '<button class="btn btn-outline btn-block" data-logout>خروج از حساب</button>';
 }
@@ -135,7 +150,7 @@ function ordersView(){
 }
 function renderModal(){
  if(!S.modal)return;
- const views={login:['ورود به وستالند',loginView],plans:['اشتراک‌های وستالند',plansView],account:['حساب من',accountView],cart:['سبد خرید من',cartView],checkout:['ثبت سفارش',checkoutView],ai:['استایلیست هوشمند',aiView],orders:['سفارش‌های من',ordersView]};
+ const views={login:['ورود به وستالند',loginView],plans:['اشتراک‌های وستالند',plansView],account:['حساب من',accountView],cart:['سبد خرید من',cartView],checkout:['ثبت سفارش',checkoutView],ai:['استایلیست هوشمند',aiView],orders:['سفارش‌های من',ordersView],'payment-success':['پرداخت موفق 💗',paymentSuccessView]};
  const [title,render]=views[S.modal]||views.login;
  modalBase(title,render());
 }
@@ -175,20 +190,50 @@ async function bootstrap(){
    try{const u=await api('me');S.user=u.user}
    catch(e){if(e.status===401){S.token='';localStorage.removeItem(sessionKey)}}
   }
-  if(new URLSearchParams(location.search).has('payment')){
-   const q=new URLSearchParams(location.search);history.replaceState(null,'',location.pathname);
-   const pid=localStorage.getItem(paymentKey);
-   if(pid&&S.token&&!isBazaarAndroid()){
+  // Zibal callback may open a new browser context without localStorage.
+  // Never trust '?payment=success' alone: obtain a paid receipt belonging to
+  // the authenticated user from our backend before showing confirmation.
+  const paymentReturn=new URLSearchParams(location.search).has('payment');
+  if(paymentReturn)history.replaceState(null,'',location.pathname);
+  if(S.token&&!isBazaarAndroid()){
+    const pid=localStorage.getItem(paymentKey);
+    let pendingStatus=null;
+    if(paymentReturn&&pid){
+      try{
+        pendingStatus=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
+        if(pendingStatus.payment_status==='paid'){
+          localStorage.removeItem(paymentKey);
+          await refreshUser();
+        }
+      }catch(e){
+        S.error='بررسی آخرین پرداخت موقتاً انجام نشد. از بخش اشتراک‌ها دوباره بررسی کن.';
+        S.modal='plans';
+      }
+    }
     try{
-      const status=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
-      if(status.payment_status==='paid'){
-        notify('پرداخت تأیید شد و اشتراکت فعال شد.');
-        localStorage.removeItem(paymentKey);await refreshUser();
-      }else if(status.payment_status==='mismatch'){
-        S.error='مبلغ پرداخت با سفارش تطبیق نداشت. با پشتیبانی تماس بگیر.';S.modal='plans';
-      }else{S.error='پرداخت هنوز تأیید نشده؛ اگر مبلغ کسر شده، آخرین پرداخت رو بررسی کن.';S.modal='plans'}
-    }catch(e){S.error='نتیجه پرداخت موقتاً در دسترس نیست. دوباره بررسی کن.';S.modal='plans'}
-   }
+      const latest=await api('subscription/latest');
+      S.latestPayment=latest.payment;
+      const p=S.latestPayment;
+      const confirmedRecently=p&&p.status==='paid'&&
+        Number(p.verified_at)>0&&Date.now()-Number(p.verified_at)*1000<24*60*60*1000;
+      const acknowledged=p&&localStorage.getItem('vestaland-confirmed-payment-v1')===p.id;
+      // A durable confirmation also repairs previously missed payment toasts.
+      // For the return flow, the latest receipt must match the local payment
+      // when a specific pending payment was being checked.
+      const matchesAttempt=!pid||pid===p?.id||pendingStatus?.payment_status==='paid';
+      if(confirmedRecently&&!acknowledged&&matchesAttempt&&!S.error){
+        S.modal='payment-success';
+        localStorage.removeItem(paymentKey);
+      }else if(paymentReturn&&!S.modal&&pendingStatus?.payment_status!=='paid'){
+        S.modal='plans';
+        S.error='پرداخت هنوز تأیید نشده؛ اگر مبلغ کسر شده، «بررسی آخرین پرداخت» رو بزن.';
+      }
+    }catch(e){
+      if(paymentReturn&&!S.modal){
+        S.error='فعلاً امکان دریافت تأییدیه از سرور نیست. وضعیت رو از بخش اشتراک‌ها بررسی کن.';
+        S.modal='plans';
+      }
+    }
   }
   if(S.user&&window.VestalandInventory){
    await window.VestalandInventory.ready;
@@ -203,6 +248,7 @@ async function bootstrap(){
  }
  decorate();
  if(gateRequired()&&!signedInAccess())open(S.user?'plans':'login');
+ else if(S.modal)renderModal();
 }
 async function refreshUser(){if(!S.token)return;const result=await api('me');S.user=result.user;updateGate();decorate()}
 async function loginSubmit(form){
@@ -230,8 +276,11 @@ async function refreshPayment(){
   const status=await api('subscription/status?id='+encodeURIComponent(pid)+'&refresh=1');
   if(status.payment_status==='paid'){
    localStorage.removeItem(paymentKey);
-   await refreshUser();notify('اشتراکت فعال شد.');
-   if(signedInAccess())close();
+   await refreshUser();
+   const receipt=await api('subscription/latest');
+   S.latestPayment=receipt.payment;
+   if(S.latestPayment?.status==='paid'){S.error='';S.modal='payment-success';}
+   else{S.error='اشتراک فعاله ولی دریافت رسید موقتاً ممکن نیست.';}
   }else if(status.payment_status==='mismatch'){S.error='مبلغ پرداخت با سفارش مطابقت نداره؛ با پشتیبانی تماس بگیر.'}
   else{S.error='هنوز پرداخت تأیید نشده؛ کمی بعد دوباره بررسی کن.'}
  }catch(e){S.error=e.message||'تأیید پرداخت موقتاً در دسترس نیست.'}
