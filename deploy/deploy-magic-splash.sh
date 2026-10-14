@@ -40,8 +40,8 @@ for name in $FILES; do
   if [[ -s "$PUBLIC/$name" ]]; then cp -p "$PUBLIC/$name" "$BACKUP/$name"; fi
 done
 grep -q 'id="entrySplash"' "$STAGE/index.html"
-grep -q 'splash.js?v=20261014-magic1' "$STAGE/index.html"
-grep -q 'vestaland-magical-entry-20261014-v1' "$STAGE/sw.js"
+grep -q 'splash.js?v=20261014-voice2' "$STAGE/index.html"
+grep -q 'vestaland-voice-20261014-v2' "$STAGE/sw.js"
 grep -q 'MIN_MS=5600' "$STAGE/splash.js"
 grep -q 'entry-bow-wrap' "$STAGE/splash.css"
 for name in $FILES; do
@@ -57,7 +57,7 @@ for name in index.html splash.css splash.js app.js commerce.js sw.js; do
 done
 grep -q 'id="entrySplash"' "$STAGE/origin-index.html"
 grep -q 'MIN_MS=5600' "$STAGE/origin-splash.js"
-grep -q 'vestaland-magical-entry' "$STAGE/origin-sw.js"
+grep -q 'vestaland-voice-20261014-v2' "$STAGE/origin-sw.js"
 # Check app API is untouched and still healthy.
 curl --noproxy '*' -fsS --max-time 12 --resolve app.vesta-cosmetics.ir:443:127.0.0.1 https://app.vesta-cosmetics.ir/api/account/health > "$STAGE/account-health"
 grep -q '"ok":true' "$STAGE/account-health"
