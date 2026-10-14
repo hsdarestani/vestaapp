@@ -1,0 +1,1 @@
+Release only updated Vestaland static microcopy, 5.6-second splash assets and service-worker cache to existing app container. Do not touch Vesta/Cutella WordPress, DBs, or ingress.
