@@ -150,7 +150,7 @@ function ordersView(){
 }
 function renderModal(){
  if(!S.modal)return;
- const views={login:['ورود به وستالند',loginView],plans:['پلن‌های اشتراک',plansView],account:['حساب من',accountView],cart:['سبد خرید من',cartView],checkout:['ثبت سفارش',checkoutView],ai:['استایلیست هوشمند',aiView],orders:['سفارش‌های من',ordersView],'payment-success':['تأیید پرداخت',paymentSuccessView]};
+ const views={login:['ورود به وستالند',loginView],plans:['پلن‌های اشتراک',plansView],account:['حساب من',accountView],cart:['سبد خرید من',cartView],checkout:['ثبت سفارش',checkoutView],ai:['پیشنهاد هوشمند',aiView],orders:['سفارش‌های من',ordersView],'payment-success':['تأیید پرداخت',paymentSuccessView]};
  const [title,render]=views[S.modal]||views.login;
  modalBase(title,render());
 }
