@@ -46,7 +46,17 @@ for name in $FILES; do
 done
 changed=1
 docker compose -p vestaapp -f "$RELEASE/deploy/compose.yml" up -d --no-deps --build account
-docker exec vc-vestaapp-account python3 -c "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8777/api/account/health',timeout=10))['ok']"
+# Allow isolated account API a short readiness window after Docker recreate.
+ready=0
+for i in $(seq 1 35); do
+  if docker exec vc-vestaapp-account python3 -c "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8777/api/account/health',timeout=4))['ok']" >/dev/null 2>&1; then
+    ready=1
+    echo "Account API healthy after restart (check $i)."
+    break
+  fi
+  sleep 1
+done
+test "$ready" = 1 || { echo 'Account API did not become healthy within readiness window'; exit 1; }
 status=000
 for i in $(seq 1 15); do
   status="$(curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --max-time 9 --resolve app.vesta-cosmetics.ir:443:127.0.0.1 https://app.vesta-cosmetics.ir/api/account/subscription/latest || true)"
