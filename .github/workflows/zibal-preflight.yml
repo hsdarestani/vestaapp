@@ -1,9 +1,6 @@
 name: Zibal merchant payment initiation preflight
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/zibal-preflight.yml']
 permissions:
   contents: read
 jobs:
